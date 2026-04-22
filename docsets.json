@@ -1,5 +1,16 @@
 [
   {
+    "engine": "godot",
+    "version": "4.6",
+    "docset": "reference",
+    "label": "Godot Engine 4.6 Documentation",
+    "description": "Offline Godot Engine 4.6 class reference and manual HTML documentation.",
+    "docs_root": "docs/godot/4.6",
+    "db_path": "data/godot/4.6/reference.db",
+    "parser_kind": "godot_html",
+    "skip_dirs": ["_downloads", "_images", "_sources", "_static"]
+  },
+  {
     "engine": "unity",
     "version": "current",
     "docset": "reference",

@@ -4,6 +4,7 @@ An MCP server for offline game engine documentation. The codebase now supports m
 
 Current built-in docsets:
 
+- `godot:4.6:reference` -> Godot Engine class reference + manual docs from `docs/godot/4.6/`
 - `unity:current:reference` -> Unity Manual + ScriptReference from `docs/unity/current/reference/`
 - `unreal:4.26:cpp-api` -> Unreal Engine 4.26 C++ API from `docs/unreal/4.26/cpp-api/`
 - `unreal:4.26:blueprint-api` -> Unreal Engine 4.26 Blueprint API from `docs/unreal/4.26/blueprint-api/`
@@ -36,6 +37,7 @@ docs/
 
 Examples:
 
+- `docs/godot/4.6/`
 - `docs/unity/current/reference/`
 - `docs/unreal/4.26/cpp-api/`
 - `docs/unreal/4.26/blueprint-api/`
@@ -59,6 +61,7 @@ game-engine-mcp/
     db.py                      # Common SQLite schema for per-docset databases
     parser.py                  # Parser dispatch + file discovery
     parsers/
+      godot.py                 # Godot class reference + manual parser
       unity.py                 # Unity HTML parser
       unreal.py                # Unreal C++ / Blueprint HTML parsers
     indexer.py                 # Single-docset and multi-docset index builders
@@ -93,9 +96,10 @@ Build the default Unity index:
 uv run python scripts/build_index.py
 ```
 
-Build a specific Unreal docset:
+Build a specific engine docset:
 
 ```bash
+uv run python scripts/build_index.py --engine godot --version 4.6 --docset reference
 uv run python scripts/build_index.py --engine unreal --version 4.26 --docset cpp-api
 uv run python scripts/build_index.py --engine unreal --version 4.26 --docset blueprint-api
 ```
@@ -167,7 +171,7 @@ If you want the MCP client to launch this repo directly over stdio:
       "command": "uv",
       "args": [
         "--directory",
-        "/absolute/path/to/unity-mcp",
+        "/absolute/path/to/game-engine-mcp",
         "run",
         "python",
         "scripts/run_server.py",
@@ -216,12 +220,16 @@ The generic tools take `engine`, `version`, and optional `docset`.
 
 Examples:
 
+- Godot:
+  `search_api_reference(query="Node.add_child", engine="godot", version="4.6")`
 - Unity:
   `search_api_reference(query="Transform.Rotate", engine="unity")`
 - Unreal C++:
   `search_api_reference(query="UCableComponent::SetAttachEndTo", engine="unreal", version="4.26", docset="cpp-api")`
 - Unreal Blueprint:
   `get_engine_symbol_reference(symbol="Cast To Actor", engine="unreal", version="4.26", docset="blueprint-api")`
+- Godot guides:
+  `search_engine_guides(query="Introduction to Godot", engine="godot", version="4.6")`
 
 Backwards-compatible Unity wrappers still exist:
 
@@ -239,6 +247,13 @@ Unity parser extracts:
 - ScriptReference symbols
 - Manual/guide pages
 - Title, symbol/class, namespace, member type, signature, parameters, returns, remarks, summary
+
+Godot parser extracts:
+
+- Class and scope pages from `classes/class_*.html`
+- Member-level anchors for signals, properties, theme properties, constructors, methods, operators, constants, annotations, enums, and enum constants
+- Guide/manual pages from the rest of the Sphinx docs tree
+- Title, class name, member type, signature, parameters, summary, remarks, topic path, and inheritance when present
 
 Unreal C++ parser extracts:
 
@@ -258,6 +273,7 @@ Unreal Blueprint parser extracts:
 - Searches are isolated to the selected docset databases, then merged at query time when you intentionally search across multiple docsets.
 - The common schema is shared, but parsers are engine-specific.
 - Not every field is populated for every engine; empty fields are expected where a doc format does not provide that concept.
+- The checked-in `docs/godot/4.6/` dump is currently branded in-page as Godot `latest` / dev docs, so strict 4.6 accuracy depends on replacing that snapshot with a true 4.6 export.
 
 ## Verification
 

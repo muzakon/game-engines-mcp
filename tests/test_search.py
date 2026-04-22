@@ -49,6 +49,15 @@ def registered_indexes(tmp_path, monkeypatch):
         db_path=tmp_path / "data" / "unreal" / "4.26" / "blueprint-api.db",
         parser_kind="unreal_blueprint_html",
     )
+    godot_spec = DocsetSpec(
+        engine="godot",
+        version="4.6",
+        docset="reference",
+        label="Godot Engine 4.6 Documentation",
+        docs_root=tmp_path / "DocumentationGodot",
+        db_path=tmp_path / "data" / "godot" / "4.6" / "reference.db",
+        parser_kind="godot_html",
+    )
 
     manifest_path = tmp_path / "docsets.json"
     manifest_path.write_text(
@@ -81,6 +90,15 @@ def registered_indexes(tmp_path, monkeypatch):
                     "db_path": str(unreal_blueprint_spec.db_path),
                     "parser_kind": unreal_blueprint_spec.parser_kind,
                 },
+                {
+                    "engine": godot_spec.engine,
+                    "version": godot_spec.version,
+                    "docset": godot_spec.docset,
+                    "label": godot_spec.label,
+                    "docs_root": str(godot_spec.docs_root),
+                    "db_path": str(godot_spec.db_path),
+                    "parser_kind": godot_spec.parser_kind,
+                },
             ]
         ),
         encoding="utf-8",
@@ -89,7 +107,7 @@ def registered_indexes(tmp_path, monkeypatch):
     monkeypatch.setenv("UNITY_MCP_DOCSETS_MANIFEST", str(manifest_path))
     clear_docset_cache()
 
-    for spec in (unity_spec, unreal_cpp_spec, unreal_blueprint_spec):
+    for spec in (unity_spec, unreal_cpp_spec, unreal_blueprint_spec, godot_spec):
         spec.docs_root.mkdir(parents=True, exist_ok=True)
         conn = get_connection(spec.db_path)
         init_db(conn, spec)
@@ -224,10 +242,74 @@ def registered_indexes(tmp_path, monkeypatch):
     conn.commit()
     conn.close()
 
+    conn = get_connection(godot_spec.db_path)
+    for record in (
+        ApiRecord(
+            title="Node",
+            relative_path="classes/class_node.html",
+            symbol_name="Node",
+            class_name="Node",
+            member_type="class",
+            signature="Inherits: Object",
+            summary="Base class for all scene objects.",
+            remarks="Nodes are Godot's building blocks.",
+            topic_path="classes",
+            inheritance_json=json.dumps(["Node", "Object"]),
+            content_text="Node is the base class for all scene objects.",
+        ),
+        ApiRecord(
+            title="Node.add_child",
+            relative_path="classes/class_node.html#class-node-method-add-child",
+            symbol_name="Node.add_child",
+            class_name="Node",
+            member_type="method",
+            signature="void add_child(node: Node, force_readable_name: bool = false)",
+            parameters_json=json.dumps(
+                [
+                    {"name": "node", "description": "Node"},
+                    {"name": "force_readable_name", "description": "bool = false"},
+                ]
+            ),
+            returns_text="void",
+            summary="Adds a child node.",
+            remarks="Adds a child node below this node in the scene tree.",
+            topic_path="classes/Node",
+            content_text="Adds a child node below this node in the scene tree.",
+        ),
+        ApiRecord(
+            title="Node.ready",
+            relative_path="classes/class_node.html#class-node-signal-ready",
+            symbol_name="Node.ready",
+            class_name="Node",
+            member_type="signal",
+            signature="ready()",
+            summary="Emitted when the node is considered ready.",
+            remarks="Emitted when the node is considered ready.",
+            topic_path="classes/Node",
+            content_text="Emitted when the node is considered ready.",
+        ),
+    ):
+        upsert_api_record(conn, record)
+    upsert_guide_record(
+        conn,
+        GuideRecord(
+            title="Introduction to Godot",
+            relative_path="getting_started/introduction/introduction_to_godot.html",
+            guide_type="introduction",
+            topic_path="getting_started/introduction",
+            summary="This article helps you decide whether Godot is a good fit.",
+            content_text="Godot is a general-purpose 2D and 3D game engine.",
+            key_topics_json=json.dumps(["What is Godot?", "Programming languages"]),
+        ),
+    )
+    conn.commit()
+    conn.close()
+
     yield {
         "unity": unity_spec,
         "unreal_cpp": unreal_cpp_spec,
         "unreal_blueprint": unreal_blueprint_spec,
+        "godot": godot_spec,
     }
 
     clear_docset_cache()
@@ -261,6 +343,16 @@ class TestSearchApi:
         assert results
         assert all(result.member_type == "method" for result in results)
 
+    def test_searches_godot_member(self, registered_indexes):
+        results = search_api("Node.add_child", engine="godot", version="4.6")
+        assert results
+        assert results[0].symbol_name == "Node.add_child"
+
+    def test_searches_godot_bare_member_name(self, registered_indexes):
+        results = search_api("add_child", engine="godot", version="4.6")
+        assert results
+        assert any(result.symbol_name == "Node.add_child" for result in results)
+
 
 class TestSearchGuides:
     def test_unity_guides(self, registered_indexes):
@@ -272,6 +364,11 @@ class TestSearchGuides:
         results = search_guides("getting started", engine="unreal", version="4.26", docset="cpp-api")
         assert results
         assert results[0].guide_type == "quickstart"
+
+    def test_godot_guides(self, registered_indexes):
+        results = search_guides("introduction to godot", engine="godot", version="4.6")
+        assert results
+        assert results[0].guide_type == "introduction"
 
 
 class TestGetSymbolReference:
@@ -298,6 +395,18 @@ class TestGetSymbolReference:
         assert ref.member_type == "blueprint_node"
         assert json.loads(ref.inputs_json)[0]["name"] == "Object"
 
+    def test_godot_member_symbol(self, registered_indexes):
+        ref = get_symbol_reference(
+            "Node.add_child",
+            engine="godot",
+            version="4.6",
+            docset="reference",
+        )
+        assert ref is not None
+        assert ref.member_type == "method"
+        assert ref.returns_text == "void"
+        assert json.loads(ref.parameters_json)[0]["name"] == "node"
+
 
 class TestGetDocPage:
     def test_doc_page_lookup(self, registered_indexes):
@@ -322,6 +431,13 @@ class TestStats:
         assert stats["guide_pages"] == 1
         assert len(stats["docsets"]) == 2
         assert stats["api_member_breakdown"].get("blueprint_node", 0) == 1
+
+    def test_godot_stats(self, registered_indexes):
+        stats = get_stats(engine="godot", version="4.6")
+        assert stats["api_pages"] == 3
+        assert stats["guide_pages"] == 1
+        assert len(stats["docsets"]) == 1
+        assert stats["api_member_breakdown"].get("method", 0) == 1
 
 
 class TestErrors:

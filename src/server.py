@@ -64,11 +64,13 @@ def search_api_reference(
 
     Use this for symbol-style queries such as:
       - Unity: Transform.Rotate, Rigidbody, Quaternion.LookRotation
+      - Godot: Node.add_child, CharacterBody3D.move_and_slide, @GlobalScope.print
       - Unreal C++: UCableComponent, UCableComponent::SetAttachEndTo, FTransform
       - Unreal Blueprint: Cast To Actor, Get Actor Location
 
     Examples:
       - engine='unity'
+      - engine='godot', version='4.6', docset='reference'
       - engine='unreal', version='4.26', docset='cpp-api'
       - engine='unreal', version='4.26', docset='blueprint-api'
     """
@@ -100,6 +102,7 @@ def search_engine_guides(
 
     Examples:
       - engine='unity' for Manual pages
+      - engine='godot', version='4.6' for class reference overviews, getting-started pages, and manuals
       - engine='unreal', version='4.26', docset='cpp-api' for QuickStart/API overview pages
     """
 
@@ -124,7 +127,13 @@ def get_engine_symbol_reference(
     version: str | None = None,
     docset: str | None = None,
 ) -> str:
-    """Resolve a single API symbol or Blueprint node to its structured reference."""
+    """Resolve a single API symbol or Blueprint node to its structured reference.
+
+    Examples:
+      - symbol='Transform.Rotate', engine='unity'
+      - symbol='Node.add_child', engine='godot', version='4.6'
+      - symbol='UCableComponent::SetAttachEndTo', engine='unreal', version='4.26', docset='cpp-api'
+    """
 
     try:
         ref = get_symbol_reference(symbol, engine=engine, version=version, docset=docset)
@@ -146,7 +155,13 @@ def get_engine_doc_page(
     version: str | None = None,
     docset: str | None = None,
 ) -> str:
-    """Retrieve a specific documentation page by relative path or substring."""
+    """Retrieve a specific documentation page by relative path or substring.
+
+    Examples:
+      - path_or_key='Manual/Transforms.html', engine='unity'
+      - path_or_key='classes/class_node.html', engine='godot', version='4.6'
+      - path_or_key='API/Runtime/Engine/UCableComponent', engine='unreal', version='4.26', docset='cpp-api'
+    """
 
     try:
         payload = get_doc_page(path_or_key, engine=engine, version=version, docset=docset)

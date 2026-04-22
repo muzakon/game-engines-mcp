@@ -1,4 +1,4 @@
-"""Tests for parser dispatch across Unity and Unreal docsets."""
+"""Tests for parser dispatch across Unity, Unreal, and Godot docsets."""
 
 from __future__ import annotations
 
@@ -8,8 +8,15 @@ import pytest
 from bs4 import BeautifulSoup
 
 from src.docsets import DocsetSpec
+from src.indexer import build_index
 from src.models import ApiRecord, GuideRecord
-from src.parser import classify_page, discover_html_files, guide_type_for, parse_html_file
+from src.parser import (
+    classify_page,
+    discover_html_files,
+    guide_type_for,
+    parse_html_file,
+    parse_html_records,
+)
 
 
 SCRIPTREF_METHOD_HTML = """\
@@ -219,6 +226,78 @@ UNREAL_BLUEPRINT_HTML = """\
 </html>
 """
 
+GODOT_CLASS_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<body>
+  <div role="main" class="document">
+    <section id="node">
+      <span id="class-node"></span><h1>Node</h1>
+      <p><strong>Inherits:</strong> <a href="class_object.html">Object</a></p>
+      <p><strong>Inherited By:</strong> <a href="class_node3d.html">Node3D</a></p>
+      <p>Base class for all scene objects.</p>
+      <section id="description">
+        <h2>Description</h2>
+        <p>Nodes are Godot's building blocks.</p>
+      </section>
+      <section id="signals">
+        <h2>Signals</h2>
+        <p class="classref-signal" id="class-node-signal-ready"><strong>ready</strong>() <a href="#class-node-signal-ready">🔗</a></p>
+        <p>Emitted when the node is considered ready.</p>
+      </section>
+      <section id="enumerations">
+        <h2>Enumerations</h2>
+        <p class="classref-enumeration" id="enum-node-processmode">enum <strong>ProcessMode</strong>: <a href="#enum-node-processmode">🔗</a></p>
+        <p class="classref-enumeration-constant" id="class-node-constant-process-mode-inherit"><a href="#enum-node-processmode">ProcessMode</a> <strong>PROCESS_MODE_INHERIT</strong> = <code>0</code></p>
+        <p>Inherits process mode from the parent node.</p>
+      </section>
+      <section id="constants">
+        <h2>Constants</h2>
+        <p class="classref-constant" id="class-node-constant-notification-ready"><strong>NOTIFICATION_READY</strong> = <code>13</code> <a href="#class-node-constant-notification-ready">🔗</a></p>
+        <p>Notification received when the node is ready.</p>
+      </section>
+      <section id="property-descriptions">
+        <h2>Property Descriptions</h2>
+        <p class="classref-property" id="class-node-property-name"><a href="class_stringname.html">StringName</a> <strong>name</strong> <a href="#class-node-property-name">🔗</a></p>
+        <ul class="classref-property-setget simple">
+          <li><p>void <strong>set_name</strong>(value: <a href="class_stringname.html">StringName</a>)</p></li>
+          <li><p><a href="class_stringname.html">StringName</a> <strong>get_name</strong>()</p></li>
+        </ul>
+        <p>The name of the node.</p>
+      </section>
+      <section id="method-descriptions">
+        <h2>Method Descriptions</h2>
+        <p class="classref-method" id="class-node-method-add-child"><abbr title="No return value.">void</abbr> <strong>add_child</strong>(node: <a href="#class-node">Node</a>, force_readable_name: <a href="class_bool.html">bool</a> = false) <a href="#class-node-method-add-child">🔗</a></p>
+        <p>Adds a child <code>node</code>.</p>
+      </section>
+    </section>
+  </div>
+</body>
+</html>
+"""
+
+GODOT_GUIDE_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<body>
+  <div role="main" class="document">
+    <section id="introduction-to-godot">
+      <h1>Introduction to Godot</h1>
+      <p>This article helps you decide whether Godot is a good fit for your project.</p>
+      <section id="what-is-godot">
+        <h2>What is Godot?</h2>
+        <p>Godot is a general-purpose 2D and 3D game engine.</p>
+      </section>
+      <section id="programming-languages">
+        <h2>Programming languages</h2>
+        <p>You can use GDScript, C#, and C++ via GDExtension.</p>
+      </section>
+    </section>
+  </div>
+</body>
+</html>
+"""
+
 
 @pytest.fixture
 def unity_docset(tmp_path) -> DocsetSpec:
@@ -261,6 +340,22 @@ def unreal_blueprint_docset(tmp_path) -> DocsetSpec:
         docs_root=root,
         db_path=tmp_path / "blueprint.db",
         parser_kind="unreal_blueprint_html",
+    )
+
+
+@pytest.fixture
+def godot_docset(tmp_path) -> DocsetSpec:
+    root = tmp_path / "godot"
+    root.mkdir()
+    return DocsetSpec(
+        engine="godot",
+        version="4.6",
+        docset="reference",
+        label="Godot Engine 4.6 Documentation",
+        docs_root=root,
+        db_path=tmp_path / "godot.db",
+        parser_kind="godot_html",
+        skip_dirs=("_downloads", "_images", "_sources", "_static"),
     )
 
 
@@ -395,3 +490,56 @@ class TestUnrealBlueprintParser:
         assert record.signature == "K2Node Dynamic Cast"
         assert json.loads(record.inputs_json)[0]["name"] == "Object"
         assert "Movie Scene Actor Reference Section" in json.loads(record.outputs_json)[0]["name"]
+
+
+class TestGodotParser:
+    def test_class_page_emits_class_and_member_records(self, godot_docset):
+        target = godot_docset.docs_root / "classes"
+        target.mkdir(parents=True)
+        html_path = target / "class_node.html"
+        html_path.write_text(GODOT_CLASS_HTML, encoding="utf-8")
+
+        records = parse_html_records(html_path, godot_docset)
+        by_symbol = {
+            record.symbol_name: record
+            for record in records
+            if isinstance(record, ApiRecord)
+        }
+
+        assert by_symbol["Node"].member_type == "class"
+        assert json.loads(by_symbol["Node"].inheritance_json) == ["Node", "Object"]
+        assert by_symbol["Node.add_child"].member_type == "method"
+        assert by_symbol["Node.add_child"].returns_text == "void"
+        assert json.loads(by_symbol["Node.add_child"].parameters_json)[0]["name"] == "node"
+        assert by_symbol["Node.ready"].member_type == "signal"
+        assert by_symbol["Node.name"].member_type == "property"
+        assert by_symbol["Node.NOTIFICATION_READY"].member_type == "constant"
+        assert by_symbol["Node.ProcessMode"].member_type == "enum"
+        assert by_symbol["Node.PROCESS_MODE_INHERIT"].member_type == "enum_constant"
+        assert by_symbol["Node.add_child"].relative_path.endswith("#class-node-method-add-child")
+
+    def test_guide_page(self, godot_docset):
+        target = godot_docset.docs_root / "getting_started" / "introduction"
+        target.mkdir(parents=True)
+        html_path = target / "introduction_to_godot.html"
+        html_path.write_text(GODOT_GUIDE_HTML, encoding="utf-8")
+
+        record = parse_html_file(html_path, godot_docset)
+        assert isinstance(record, GuideRecord)
+        assert record.guide_type == "introduction"
+        assert record.topic_path == "getting_started/introduction"
+        assert json.loads(record.key_topics_json) == ["What is Godot?", "Programming languages"]
+
+    def test_indexer_counts_member_records(self, godot_docset):
+        class_target = godot_docset.docs_root / "classes"
+        class_target.mkdir(parents=True)
+        (class_target / "class_node.html").write_text(GODOT_CLASS_HTML, encoding="utf-8")
+
+        guide_target = godot_docset.docs_root / "getting_started" / "introduction"
+        guide_target.mkdir(parents=True)
+        (guide_target / "introduction_to_godot.html").write_text(GODOT_GUIDE_HTML, encoding="utf-8")
+
+        stats = build_index(godot_docset, rebuild=True, batch_size=10)
+        assert stats["total"] == 2
+        assert stats["api_indexed"] == 7
+        assert stats["guide_indexed"] == 1

@@ -9,7 +9,7 @@ from pathlib import Path
 from .db import get_connection, init_db, rebuild_db, upsert_api_record, upsert_guide_record
 from .docsets import DocsetSpec, get_docset, select_docsets
 from .models import ApiRecord, GuideRecord
-from .parser import discover_html_files, parse_html_file
+from .parser import discover_html_files, parse_html_records
 
 logger = logging.getLogger(__name__)
 
@@ -45,13 +45,13 @@ def build_index(
 
     for index, html_path in enumerate(html_files, 1):
         try:
-            record = parse_html_file(html_path, spec)
-            if isinstance(record, ApiRecord):
-                upsert_api_record(conn, record)
-                api_count += 1
-            elif isinstance(record, GuideRecord):
-                upsert_guide_record(conn, record)
-                guide_count += 1
+            for record in parse_html_records(html_path, spec):
+                if isinstance(record, ApiRecord):
+                    upsert_api_record(conn, record)
+                    api_count += 1
+                elif isinstance(record, GuideRecord):
+                    upsert_guide_record(conn, record)
+                    guide_count += 1
         except Exception as exc:  # pragma: no cover - kept for resilience during bulk indexing
             errors += 1
             logger.warning("Error indexing %s: %s", html_path, exc)

@@ -11,12 +11,14 @@ from .models import ApiRecord, GuideRecord
 from .parsers import (
     classify_page,
     guide_type_for,
+    parse_godot_html,
     parse_blueprint_html,
     parse_unity_html,
     parse_unreal_cpp_html,
 )
 
 ParsedRecord = ApiRecord | GuideRecord
+ParsedRecords = list[ParsedRecord]
 
 
 def discover_html_files(docset: DocsetSpec | None = None, root: Path | None = None) -> list[Path]:
@@ -41,29 +43,46 @@ def discover_html_files(docset: DocsetSpec | None = None, root: Path | None = No
     return files
 
 
-def parse_html_file(
+def parse_html_records(
     html_path: Path,
     docset: DocsetSpec | None = None,
     docs_root: Path | None = None,
-) -> ParsedRecord:
-    """Parse one file into an ApiRecord or a GuideRecord."""
+) -> ParsedRecords:
+    """Parse one file into one or more records."""
 
     docset = docset or get_docset()
     resolved_root = docs_root or docset.docs_root
 
     if docset.parser_kind == "unity_html":
-        return parse_unity_html(html_path, resolved_root)
+        return [parse_unity_html(html_path, resolved_root)]
     if docset.parser_kind == "unreal_cpp_html":
-        return parse_unreal_cpp_html(html_path, resolved_root)
+        return [parse_unreal_cpp_html(html_path, resolved_root)]
     if docset.parser_kind == "unreal_blueprint_html":
-        return parse_blueprint_html(html_path, resolved_root)
+        return [parse_blueprint_html(html_path, resolved_root)]
+    if docset.parser_kind == "godot_html":
+        return parse_godot_html(html_path, resolved_root)
     raise ValueError(f"Unsupported parser kind: {docset.parser_kind}")
+
+
+def parse_html_file(
+    html_path: Path,
+    docset: DocsetSpec | None = None,
+    docs_root: Path | None = None,
+) -> ParsedRecord:
+    """Parse one file into its primary record."""
+
+    records = parse_html_records(html_path, docset=docset, docs_root=docs_root)
+    if not records:
+        raise ValueError(f"No records were parsed from {html_path}")
+    return records[0]
 
 
 __all__ = [
     "ParsedRecord",
+    "ParsedRecords",
     "classify_page",
     "discover_html_files",
     "guide_type_for",
+    "parse_html_records",
     "parse_html_file",
 ]
