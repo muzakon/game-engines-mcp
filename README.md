@@ -136,6 +136,70 @@ Legacy Unity env vars still work:
 - `UNITY_MCP_HOST`
 - `UNITY_MCP_PORT`
 
+## MCP Client Setup
+
+After building the indexes and starting the server, add it to your MCP client.
+
+### HTTP / URL setup
+
+If you run the server over HTTP on the default port:
+
+```json
+{
+  "mcpServers": {
+    "unityMCP": {
+      "url": "http://localhost:8080/mcp"
+    }
+  }
+}
+```
+
+You can change the server key from `unityMCP` to any name your client prefers.
+
+### Local stdio setup
+
+If you want the MCP client to launch this repo directly over stdio:
+
+```json
+{
+  "mcpServers": {
+    "unityMCP": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/absolute/path/to/unity-mcp",
+        "run",
+        "python",
+        "scripts/run_server.py",
+        "--stdio"
+      ]
+    }
+  }
+}
+```
+
+### Published package setup
+
+If you later publish this project as a package, the stdio configuration can use `uvx` instead of a local repo path. Example template:
+
+```json
+{
+  "mcpServers": {
+    "unityMCP": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "<your-package-name>",
+        "<your-entry-command>",
+        "--stdio"
+      ]
+    }
+  }
+}
+```
+
+Use the real published package name and command when you have one.
+
 ## MCP Tools
 
 Primary tools:
