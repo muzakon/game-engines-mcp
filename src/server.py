@@ -288,11 +288,13 @@ def main() -> None:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
 
-    transport = "streamable-http"
+    transport = os.environ.get("MCP_TRANSPORT", "streamable-http")
     if "--stdio" in sys.argv:
         transport = "stdio"
+    elif "--sse" in sys.argv:
+        transport = "sse"
 
-    if transport == "streamable-http":
+    if transport in ("streamable-http", "sse"):
         host = (
             os.environ.get("GAME_DOCS_MCP_HOST")
             or os.environ.get("UNITY_MCP_HOST")
@@ -308,10 +310,13 @@ def main() -> None:
                 host = arg.split("=", 1)[1]
             elif arg.startswith("--port="):
                 port = int(arg.split("=", 1)[1])
-        print(f"Documentation MCP server starting on http://{host}:{port}/mcp", file=sys.stderr)
         mcp.settings.host = host
         mcp.settings.port = port
 
+    print(
+        f"Documentation MCP server starting (transport={transport}) on http://{host}:{port}",
+        file=sys.stderr,
+    )
     mcp.run(transport=transport)
 
 
