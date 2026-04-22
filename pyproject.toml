@@ -1,0 +1,26 @@
+[project]
+name = "unity-mcp"
+version = "0.1.0"
+description = "Local MCP server for querying offline Unity documentation via SQLite FTS5"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "beautifulsoup4>=4.12",
+    "lxml>=5.0",
+    "mcp>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/unity_mcp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
