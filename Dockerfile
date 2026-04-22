@@ -5,10 +5,10 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 WORKDIR /app
 
 COPY pyproject.toml uv.lock README.md ./
-COPY src/unity_mcp/__init__.py src/unity_mcp/__init__.py
+COPY server/__init__.py server/__init__.py
 RUN uv sync --frozen --no-dev
 
-COPY src/ src/
+COPY server/ server/
 COPY scripts/ scripts/
 COPY data/unity_docs.db data/unity_docs.db
 

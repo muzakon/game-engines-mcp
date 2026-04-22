@@ -7,9 +7,9 @@ import json
 import pytest
 from bs4 import BeautifulSoup
 
-from unity_mcp.docsets import DocsetSpec
-from unity_mcp.models import ApiRecord, GuideRecord
-from unity_mcp.parser import classify_page, discover_html_files, guide_type_for, parse_html_file
+from server.docsets import DocsetSpec
+from server.models import ApiRecord, GuideRecord
+from server.parser import classify_page, discover_html_files, guide_type_for, parse_html_file
 
 
 SCRIPTREF_METHOD_HTML = """\

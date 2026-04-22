@@ -6,10 +6,10 @@ import json
 
 import pytest
 
-from unity_mcp.db import get_connection, init_db, upsert_api_record, upsert_guide_record
-from unity_mcp.docsets import clear_docset_cache, DocsetSpec
-from unity_mcp.models import ApiRecord, GuideRecord
-from unity_mcp.search import (
+from server.db import get_connection, init_db, upsert_api_record, upsert_guide_record
+from server.docsets import clear_docset_cache, DocsetSpec
+from server.models import ApiRecord, GuideRecord
+from server.search import (
     IndexNotReadyError,
     answer_question,
     get_doc_page,

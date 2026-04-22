@@ -1,4 +1,4 @@
-# unity-mcp
+# game-engine-mcp
 
 An MCP server for offline game engine documentation. The codebase now supports multiple engines, multiple versions, and multiple docsets without collapsing everything into one database.
 
@@ -49,10 +49,10 @@ The docset registry lives in [`docsets.json`](docsets.json). Adding a new engine
 ## Project Structure
 
 ```text
-unity-mcp/
+game-engine-mcp/
   docsets.json                 # Registry of engine/version/docset targets
   docs/                        # All offline docs in engine/version/docset layout
-  src/unity_mcp/
+  server/
     config.py                  # Global constants and defaults
     docsets.py                 # Docset manifest loading and selection
     models.py                  # Shared record/result/reference models
