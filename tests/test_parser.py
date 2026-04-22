@@ -7,9 +7,9 @@ import json
 import pytest
 from bs4 import BeautifulSoup
 
-from server.docsets import DocsetSpec
-from server.models import ApiRecord, GuideRecord
-from server.parser import classify_page, discover_html_files, guide_type_for, parse_html_file
+from src.docsets import DocsetSpec
+from src.models import ApiRecord, GuideRecord
+from src.parser import classify_page, discover_html_files, guide_type_for, parse_html_file
 
 
 SCRIPTREF_METHOD_HTML = """\

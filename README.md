@@ -52,7 +52,7 @@ The docset registry lives in [`docsets.json`](docsets.json). Adding a new engine
 game-engine-mcp/
   docsets.json                 # Registry of engine/version/docset targets
   docs/                        # All offline docs in engine/version/docset layout
-  server/
+  src/
     config.py                  # Global constants and defaults
     docsets.py                 # Docset manifest loading and selection
     models.py                  # Shared record/result/reference models

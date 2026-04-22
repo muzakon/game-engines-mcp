@@ -6,10 +6,10 @@ import json
 
 import pytest
 
-from server.db import get_connection, init_db, upsert_api_record, upsert_guide_record
-from server.docsets import clear_docset_cache, DocsetSpec
-from server.models import ApiRecord, GuideRecord
-from server.search import (
+from src.db import get_connection, init_db, upsert_api_record, upsert_guide_record
+from src.docsets import clear_docset_cache, DocsetSpec
+from src.models import ApiRecord, GuideRecord
+from src.search import (
     IndexNotReadyError,
     answer_question,
     get_doc_page,

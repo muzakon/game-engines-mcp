@@ -1,7 +1,7 @@
 include .env
 export
 
-IMAGE_NAME  := unity-mcp
+IMAGE_NAME  := game-engine-mcp
 IMAGE_TAG   := latest
 
 .PHONY: build run stop index
