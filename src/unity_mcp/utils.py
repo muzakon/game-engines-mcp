@@ -23,9 +23,33 @@ def safe_json_parse(text: str) -> Any:
         return []
 
 
-# ---------------------------------------------------------------------------
-# Search-result rendering
-# ---------------------------------------------------------------------------
+def _target_label(engine: str, version: str, docset: str, docset_label: str = "") -> str:
+    if docset_label:
+        return f"{docset_label} [{engine}/{version}/{docset}]"
+    if engine or version or docset:
+        return f"{engine}/{version}/{docset}".strip("/")
+    return ""
+
+
+def format_docset_status(rows: list[dict[str, str | bool]]) -> str:
+    if not rows:
+        return "No documentation targets are registered."
+
+    lines = ["Registered documentation targets", "=" * 32]
+    for row in rows:
+        lines.append(f"- {row['label']} ({row['key']})")
+        lines.append(f"  Docs root: {row['docs_root']}")
+        lines.append(f"  Database: {row['db_path']}")
+        lines.append(f"  Parser: {row['parser_kind']}")
+        lines.append(
+            f"  Status: docs={'yes' if row['docs_available'] else 'no'} | "
+            f"index={'yes' if row['index_available'] else 'no'}"
+        )
+        if row.get("description"):
+            lines.append(f"  Notes: {row['description']}")
+        lines.append("")
+    return "\n".join(lines).rstrip()
+
 
 def format_search_results(results: list[SearchResult], header: str | None = None) -> str:
     if not results:
@@ -35,73 +59,124 @@ def format_search_results(results: list[SearchResult], header: str | None = None
     if header:
         lines.append(header)
         lines.append("=" * len(header))
-    for i, r in enumerate(results, 1):
-        lines.append(f"--- Result {i} [{r.category}] ---")
-        lines.append(f"Title: {r.title}")
-        if r.symbol_name:
-            lines.append(f"Symbol: {r.symbol_name}")
-        if r.class_name and r.class_name != r.symbol_name:
-            lines.append(f"Class: {r.class_name}")
-        if r.namespace:
-            lines.append(f"Namespace: {r.namespace}")
-        if r.member_type:
-            lines.append(f"Member type: {r.member_type}")
-        if r.guide_type:
-            lines.append(f"Guide type: {r.guide_type}")
-        lines.append(f"Path: {r.relative_path}")
-        lines.append(f"Snippet: {truncate(r.snippet, 400)}")
+    for i, result in enumerate(results, 1):
+        lines.append(f"--- Result {i} [{result.category}] ---")
+        target = _target_label(result.engine, result.version, result.docset, result.docset_label)
+        if target:
+            lines.append(f"Target: {target}")
+        lines.append(f"Title: {result.title}")
+        if result.symbol_name:
+            lines.append(f"Symbol: {result.symbol_name}")
+        if result.class_name and result.class_name != result.symbol_name:
+            lines.append(f"Class: {result.class_name}")
+        if result.namespace:
+            lines.append(f"Namespace: {result.namespace}")
+        if result.module_name:
+            lines.append(f"Module: {result.module_name}")
+        if result.member_type:
+            lines.append(f"Member type: {result.member_type}")
+        if result.guide_type:
+            lines.append(f"Guide type: {result.guide_type}")
+        if result.topic_path:
+            lines.append(f"Topic path: {result.topic_path}")
+        lines.append(f"Path: {result.relative_path}")
+        lines.append(f"Snippet: {truncate(result.snippet, 400)}")
         lines.append("")
-    return "\n".join(lines)
+    return "\n".join(lines).rstrip()
 
 
 def format_combined_results(bundle: dict[str, list[SearchResult]]) -> str:
-    parts: list[str] = []
     api = bundle.get("api", [])
     guide = bundle.get("guide", [])
 
-    parts.append("Unity documentation answer (combined search)")
-    parts.append("=" * 44)
-    parts.append(
-        f"API matches: {len(api)} | Guide matches: {len(guide)}"
-    )
-    parts.append("")
-    parts.append(format_search_results(api, header="API / Reference results"))
-    parts.append("")
-    parts.append(format_search_results(guide, header="Guide / Manual results"))
+    parts = [
+        "Documentation answer (combined search)",
+        "=" * 36,
+        f"API matches: {len(api)} | Guide matches: {len(guide)}",
+        "",
+        format_search_results(api, header="API / Reference results"),
+        "",
+        format_search_results(guide, header="Guide / Concept results"),
+    ]
     return "\n".join(parts)
 
 
-# ---------------------------------------------------------------------------
-# Detail rendering
-# ---------------------------------------------------------------------------
+def _append_json_list(lines: list[str], heading: str, payload: str, formatter) -> None:
+    items = safe_json_parse(payload)
+    if not items:
+        return
+    lines += ["", heading]
+    for item in items:
+        rendered = formatter(item)
+        if rendered:
+            lines.append(rendered)
+
 
 def format_symbol_ref(ref: SymbolReference) -> str:
     lines: list[str] = [f"# {ref.title or ref.symbol_name or '(untitled)'}"]
+    target = _target_label(ref.engine, ref.version, ref.docset, ref.docset_label)
+    if target:
+        lines.append(f"Target: {target}")
     if ref.symbol_name:
         lines.append(f"Symbol: {ref.symbol_name}")
     if ref.class_name and ref.class_name != ref.symbol_name:
         lines.append(f"Class: {ref.class_name}")
     if ref.namespace:
         lines.append(f"Namespace: {ref.namespace}")
+    if ref.module_name:
+        lines.append(f"Module: {ref.module_name}")
     if ref.member_type:
         lines.append(f"Member type: {ref.member_type}")
+    if ref.topic_path:
+        lines.append(f"Topic path: {ref.topic_path}")
     lines.append(f"Path: {ref.relative_path}")
-    lines.append("Source: Unity ScriptReference (API)")
+    if ref.header_path:
+        lines.append(f"Header: {ref.header_path}")
+    if ref.include_text:
+        lines.append(f"Include: {ref.include_text}")
+    if ref.source_path:
+        lines.append(f"Source file: {ref.source_path}")
 
     if ref.signature:
         lines += ["", "## Signature", ref.signature]
     if ref.summary:
         lines += ["", "## Summary", ref.summary]
 
-    params = safe_json_parse(ref.parameters_json)
-    if params:
-        lines += ["", "## Parameters"]
-        for p in params:
-            lines.append(f"  - {p.get('name', '?')}: {p.get('description', '')}")
+    _append_json_list(
+        lines,
+        "## Parameters",
+        ref.parameters_json,
+        lambda item: f"- {item.get('name', '?')}: {item.get('description', '')}".rstrip(),
+    )
+
     if ref.returns_text:
         lines += ["", "## Returns", ref.returns_text]
     if ref.remarks:
         lines += ["", "## Remarks", ref.remarks]
+    _append_json_list(
+        lines,
+        "## Inheritance",
+        ref.inheritance_json,
+        lambda item: f"- {item}" if item else "",
+    )
+    _append_json_list(
+        lines,
+        "## Inputs",
+        ref.inputs_json,
+        lambda item: (
+            f"- {item.get('name', '?')}: {item.get('type', '')}"
+            + (f" | {item.get('description')}" if item.get("description") else "")
+        ).rstrip(),
+    )
+    _append_json_list(
+        lines,
+        "## Outputs",
+        ref.outputs_json,
+        lambda item: (
+            f"- {item.get('name', '?')}: {item.get('type', '')}"
+            + (f" | {item.get('description')}" if item.get("description") else "")
+        ).rstrip(),
+    )
     if ref.content_excerpt:
         lines += ["", "## Content Excerpt", truncate(ref.content_excerpt, 1500)]
     return "\n".join(lines)
@@ -109,26 +184,30 @@ def format_symbol_ref(ref: SymbolReference) -> str:
 
 def format_guide_ref(ref: GuideReference) -> str:
     lines: list[str] = [f"# {ref.title or '(untitled)'}"]
+    target = _target_label(ref.engine, ref.version, ref.docset, ref.docset_label)
+    if target:
+        lines.append(f"Target: {target}")
     if ref.guide_type:
         lines.append(f"Guide type: {ref.guide_type}")
+    if ref.topic_path:
+        lines.append(f"Topic path: {ref.topic_path}")
     lines.append(f"Path: {ref.relative_path}")
-    lines.append("Source: Unity Manual (Guide)")
 
     if ref.summary:
         lines += ["", "## Summary", ref.summary]
 
-    topics = safe_json_parse(ref.key_topics_json)
-    if topics:
-        lines += ["", "## Key topics"]
-        for t in topics:
-            lines.append(f"  - {t}")
+    _append_json_list(
+        lines,
+        "## Key topics",
+        ref.key_topics_json,
+        lambda item: f"- {item}" if item else "",
+    )
     if ref.content_excerpt:
         lines += ["", "## Content Excerpt", truncate(ref.content_excerpt, 2000)]
     return "\n".join(lines)
 
 
 def format_doc_page(payload: dict) -> str:
-    """Format whatever get_doc_page() returned (api or guide)."""
     ref = payload["ref"]
     if isinstance(ref, SymbolReference):
         return format_symbol_ref(ref)

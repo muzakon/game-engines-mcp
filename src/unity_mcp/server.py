@@ -1,16 +1,4 @@
-"""MCP server exposing Unity documentation tools.
-
-Supports both stdio and streamable HTTP transports.
-
-The tool surface mirrors the two-index architecture:
-
-- search_unity_api          -> precise API/symbol lookup
-- search_unity_guides       -> conceptual / how-to lookup
-- get_unity_symbol_reference-> structured single-symbol detail (API only)
-- get_unity_doc_page        -> retrieve a specific page (either index)
-- answer_unity_question     -> hybrid: search both indexes, label results
-- get_unity_index_stats     -> index health
-"""
+"""MCP server exposing engine/version/docset-aware documentation tools."""
 
 from __future__ import annotations
 
@@ -20,7 +8,9 @@ import sys
 
 from mcp.server.fastmcp import FastMCP
 
+from .docsets import docset_status_rows, select_docsets
 from .search import (
+    IndexNotReadyError,
     answer_question,
     get_doc_page,
     get_stats,
@@ -31,134 +21,264 @@ from .search import (
 from .utils import (
     format_combined_results,
     format_doc_page,
+    format_docset_status,
     format_search_results,
     format_symbol_ref,
 )
 
 logger = logging.getLogger(__name__)
 
-mcp = FastMCP("unity-mcp")
+mcp = FastMCP("game-engine-docs-mcp")
+
+
+def _error_message(exc: Exception) -> str:
+    return str(exc).strip() or exc.__class__.__name__
 
 
 @mcp.tool()
-def search_unity_api(
+def list_documentation_targets(
+    engine: str | None = None,
+    version: str | None = None,
+) -> str:
+    """List registered documentation targets and whether their docs/indexes exist.
+
+    Examples:
+      - engine='unity'
+      - engine='unreal', version='4.26'
+    """
+
+    rows = docset_status_rows(select_docsets(engine=engine, version=version))
+    return format_docset_status(rows)
+
+
+@mcp.tool()
+def search_api_reference(
     query: str,
+    engine: str = "unity",
+    version: str | None = None,
+    docset: str | None = None,
     limit: int = 10,
     member_type: str | None = None,
 ) -> str:
-    """Precise search across Unity's ScriptReference (classes, structs, enums,
-    interfaces, methods, properties, fields, events). Use this for symbol-style
-    queries like 'Transform.Rotate', 'Rigidbody', 'OnCollisionEnter',
-    'Quaternion.LookRotation'. Ranking is weighted toward symbol/title/class
-    matches, so exact identifiers surface first.
+    """Search API/reference documentation within a selected engine/version/docset.
 
-    Args:
-        query: Symbol or API term, e.g. 'Transform.Rotate' or 'Rigidbody velocity'.
-        limit: Max results (default 10, max 50).
-        member_type: Optional filter: class | struct | enum | interface | method | property | field | event.
+    Use this for symbol-style queries such as:
+      - Unity: Transform.Rotate, Rigidbody, Quaternion.LookRotation
+      - Unreal C++: UCableComponent, UCableComponent::SetAttachEndTo, FTransform
+      - Unreal Blueprint: Cast To Actor, Get Actor Location
+
+    Examples:
+      - engine='unity'
+      - engine='unreal', version='4.26', docset='cpp-api'
+      - engine='unreal', version='4.26', docset='blueprint-api'
     """
-    results = search_api(query, limit=limit, member_type=member_type)
-    return format_search_results(results, header=f"API search: '{query}'")
+
+    try:
+        results = search_api(
+            query,
+            limit=limit,
+            member_type=member_type,
+            engine=engine,
+            version=version,
+            docset=docset,
+        )
+        return format_search_results(results, header=f"API search: '{query}'")
+    except (ValueError, IndexNotReadyError) as exc:
+        return _error_message(exc)
 
 
 @mcp.tool()
-def search_unity_guides(
+def search_engine_guides(
     query: str,
+    engine: str = "unity",
+    version: str | None = None,
+    docset: str | None = None,
     limit: int = 10,
     guide_type: str | None = None,
 ) -> str:
-    """Conceptual / how-to search across Unity's Manual (tutorials, overviews,
-    workflows, editor usage, best practices). Use this for natural-language
-    questions like 'how to rotate a cube', 'how to move with physics',
-    'how to load a scene'. Ranking favors title and section-heading matches.
+    """Search conceptual/guide documentation within a selected engine/version/docset.
 
-    Args:
-        query: Natural-language question or topic.
-        limit: Max results (default 10, max 50).
-        guide_type: Optional filter: manual | tutorial | overview | reference | general.
+    Examples:
+      - engine='unity' for Manual pages
+      - engine='unreal', version='4.26', docset='cpp-api' for QuickStart/API overview pages
     """
-    results = search_guides(query, limit=limit, guide_type=guide_type)
-    return format_search_results(results, header=f"Guide search: '{query}'")
+
+    try:
+        results = search_guides(
+            query,
+            limit=limit,
+            guide_type=guide_type,
+            engine=engine,
+            version=version,
+            docset=docset,
+        )
+        return format_search_results(results, header=f"Guide search: '{query}'")
+    except (ValueError, IndexNotReadyError) as exc:
+        return _error_message(exc)
 
 
 @mcp.tool()
-def get_unity_symbol_reference(symbol: str) -> str:
-    """Look up a single Unity API symbol (class, method, property, enum, ...) by name.
-    Returns the structured reference: signature, summary, parameters, returns,
-    remarks, and a content excerpt. Examples: 'Transform', 'Transform.Rotate',
-    'Rigidbody', 'Vector3', 'MonoBehaviour.Start'.
+def get_engine_symbol_reference(
+    symbol: str,
+    engine: str = "unity",
+    version: str | None = None,
+    docset: str | None = None,
+) -> str:
+    """Resolve a single API symbol or Blueprint node to its structured reference."""
 
-    Args:
-        symbol: Symbol to resolve, e.g. 'Transform.Rotate' or 'Rigidbody'.
-    """
-    ref = get_symbol_reference(symbol)
+    try:
+        ref = get_symbol_reference(symbol, engine=engine, version=version, docset=docset)
+    except (ValueError, IndexNotReadyError) as exc:
+        return _error_message(exc)
     if ref:
         return format_symbol_ref(ref)
     return (
         f"No documentation found for symbol '{symbol}'. "
-        "Try search_unity_api for related identifiers, or search_unity_guides "
-        "for conceptual material."
+        "Try search_api_reference for related identifiers or list_documentation_targets "
+        "to inspect the available docsets."
     )
 
 
 @mcp.tool()
-def get_unity_doc_page(path_or_key: str) -> str:
-    """Retrieve a specific Unity documentation page by relative path or substring.
-    Tries the API index first, then the guide index. Returns the appropriate
-    structured view (symbol reference for API, guide page for Manual).
+def get_engine_doc_page(
+    path_or_key: str,
+    engine: str = "unity",
+    version: str | None = None,
+    docset: str | None = None,
+) -> str:
+    """Retrieve a specific documentation page by relative path or substring."""
 
-    Args:
-        path_or_key: Relative path of the doc page, e.g. 'en/ScriptReference/Transform.html'
-            or 'en/Manual/class-Transform.html'. Substrings are accepted.
-    """
-    payload = get_doc_page(path_or_key)
+    try:
+        payload = get_doc_page(path_or_key, engine=engine, version=version, docset=docset)
+    except (ValueError, IndexNotReadyError) as exc:
+        return _error_message(exc)
     if payload:
         return format_doc_page(payload)
     return (
         f"No documentation page found matching '{path_or_key}'. "
-        "Try search_unity_api or search_unity_guides to find the correct path."
+        "Try search_api_reference or search_engine_guides to find the correct path."
     )
 
 
 @mcp.tool()
-def answer_unity_question(query: str, limit_per_index: int = 5) -> str:
-    """Hybrid search: runs the question against BOTH the API index and the guide
-    index and returns labeled results from each. Useful when you don't know
-    whether a question is symbol-precise or conceptual. Each result is tagged
-    with its source so you can cite whether the answer came from API or Guide docs.
+def answer_engine_question(
+    query: str,
+    engine: str = "unity",
+    version: str | None = None,
+    docset: str | None = None,
+    limit_per_index: int = 5,
+) -> str:
+    """Run the question against both API/reference and guide indexes."""
 
-    Args:
-        query: Free-form Unity question.
-        limit_per_index: Max results per index (default 5, max 50).
-    """
-    bundle = answer_question(query, limit_per_index=limit_per_index)
-    return format_combined_results(bundle)
+    try:
+        bundle = answer_question(
+            query,
+            limit_per_index=limit_per_index,
+            engine=engine,
+            version=version,
+            docset=docset,
+        )
+        return format_combined_results(bundle)
+    except (ValueError, IndexNotReadyError) as exc:
+        return _error_message(exc)
+
+
+@mcp.tool()
+def get_index_stats(
+    engine: str | None = None,
+    version: str | None = None,
+    docset: str | None = None,
+) -> str:
+    """Statistics about the selected documentation indexes."""
+
+    try:
+        stats = get_stats(engine=engine, version=version, docset=docset)
+    except (ValueError, IndexNotReadyError) as exc:
+        return _error_message(exc)
+
+    lines = [
+        "Documentation Index Statistics",
+        "=" * 30,
+        f"Total indexed pages: {stats['total_pages']}",
+        f"  - API pages:   {stats['api_pages']}",
+        f"  - Guide pages: {stats['guide_pages']}",
+        f"Unique classes/types: {stats['unique_classes']}",
+        f"Unique namespaces:    {stats['unique_namespaces']}",
+        "",
+        "Selected docsets:",
+    ]
+    for row in stats["docsets"]:
+        lines.append(
+            f"  - {row['label']} ({row['key']}): api={row['api_pages']}, guide={row['guide_pages']}"
+        )
+    lines += ["", "API member-type breakdown:"]
+    for key, value in sorted(stats["api_member_breakdown"].items(), key=lambda item: (-item[1], item[0])):
+        lines.append(f"  - {key or '(unknown)'}: {value}")
+    lines += ["", "Guide-type breakdown:"]
+    for key, value in sorted(stats["guide_breakdown"].items(), key=lambda item: (-item[1], item[0])):
+        lines.append(f"  - {key or '(unknown)'}: {value}")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Backwards-compatible Unity wrappers
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+def search_unity_api(query: str, limit: int = 10, member_type: str | None = None) -> str:
+    """Compatibility wrapper around search_api_reference(engine='unity')."""
+
+    return search_api_reference(
+        query=query,
+        engine="unity",
+        limit=limit,
+        member_type=member_type,
+    )
+
+
+@mcp.tool()
+def search_unity_guides(query: str, limit: int = 10, guide_type: str | None = None) -> str:
+    """Compatibility wrapper around search_engine_guides(engine='unity')."""
+
+    return search_engine_guides(
+        query=query,
+        engine="unity",
+        limit=limit,
+        guide_type=guide_type,
+    )
+
+
+@mcp.tool()
+def get_unity_symbol_reference(symbol: str) -> str:
+    """Compatibility wrapper around get_engine_symbol_reference(engine='unity')."""
+
+    return get_engine_symbol_reference(symbol=symbol, engine="unity")
+
+
+@mcp.tool()
+def get_unity_doc_page(path_or_key: str) -> str:
+    """Compatibility wrapper around get_engine_doc_page(engine='unity')."""
+
+    return get_engine_doc_page(path_or_key=path_or_key, engine="unity")
+
+
+@mcp.tool()
+def answer_unity_question(query: str, limit_per_index: int = 5) -> str:
+    """Compatibility wrapper around answer_engine_question(engine='unity')."""
+
+    return answer_engine_question(
+        query=query,
+        engine="unity",
+        limit_per_index=limit_per_index,
+    )
 
 
 @mcp.tool()
 def get_unity_index_stats() -> str:
-    """Statistics about the indexed Unity documentation: per-index counts, unique
-    classes/namespaces, member-type breakdown, guide-type breakdown.
-    """
-    s = get_stats()
-    lines = [
-        "Unity Documentation Index Statistics",
-        "=" * 40,
-        f"Total indexed pages: {s['total_pages']}",
-        f"  - API pages:   {s['api_pages']}",
-        f"  - Guide pages: {s['guide_pages']}",
-        f"Unique classes:    {s['unique_classes']}",
-        f"Unique namespaces: {s['unique_namespaces']}",
-        "",
-        "API member-type breakdown:",
-    ]
-    for k, v in sorted(s["api_member_breakdown"].items(), key=lambda kv: -kv[1]):
-        lines.append(f"  - {k or '(unknown)'}: {v}")
-    lines.append("")
-    lines.append("Guide-type breakdown:")
-    for k, v in sorted(s["guide_breakdown"].items(), key=lambda kv: -kv[1]):
-        lines.append(f"  - {k or '(unknown)'}: {v}")
-    return "\n".join(lines)
+    """Compatibility wrapper around get_index_stats(engine='unity')."""
+
+    return get_index_stats(engine="unity")
 
 
 def main() -> None:
@@ -173,14 +293,22 @@ def main() -> None:
         transport = "stdio"
 
     if transport == "streamable-http":
-        host = os.environ.get("UNITY_MCP_HOST", "0.0.0.0")
-        port = int(os.environ.get("UNITY_MCP_PORT", "8080"))
+        host = (
+            os.environ.get("GAME_DOCS_MCP_HOST")
+            or os.environ.get("UNITY_MCP_HOST")
+            or "0.0.0.0"
+        )
+        port = int(
+            os.environ.get("GAME_DOCS_MCP_PORT")
+            or os.environ.get("UNITY_MCP_PORT")
+            or "8080"
+        )
         for arg in sys.argv:
             if arg.startswith("--host="):
                 host = arg.split("=", 1)[1]
             elif arg.startswith("--port="):
                 port = int(arg.split("=", 1)[1])
-        print(f"Unity MCP server starting on http://{host}:{port}/mcp", file=sys.stderr)
+        print(f"Documentation MCP server starting on http://{host}:{port}/mcp", file=sys.stderr)
         mcp.settings.host = host
         mcp.settings.port = port
 

@@ -1,0 +1,33 @@
+[
+  {
+    "engine": "unity",
+    "version": "current",
+    "docset": "reference",
+    "label": "Unity Reference",
+    "description": "Offline Unity Manual and ScriptReference HTML documentation.",
+    "docs_root": "docs/unity/current/reference",
+    "db_path": "data/unity/current/reference.db",
+    "parser_kind": "unity_html",
+    "skip_dirs": ["StaticFiles", "StaticFilesManual", "uploads"]
+  },
+  {
+    "engine": "unreal",
+    "version": "4.26",
+    "docset": "cpp-api",
+    "label": "Unreal Engine 4.26 C++ API",
+    "description": "Offline Unreal Engine 4.26 C++ API HTML documentation.",
+    "docs_root": "docs/unreal/4.26/cpp-api",
+    "db_path": "data/unreal/4.26/cpp-api.db",
+    "parser_kind": "unreal_cpp_html"
+  },
+  {
+    "engine": "unreal",
+    "version": "4.26",
+    "docset": "blueprint-api",
+    "label": "Unreal Engine 4.26 Blueprint API",
+    "description": "Offline Unreal Engine 4.26 Blueprint API HTML documentation.",
+    "docs_root": "docs/unreal/4.26/blueprint-api",
+    "db_path": "data/unreal/4.26/blueprint-api.db",
+    "parser_kind": "unreal_blueprint_html"
+  }
+]

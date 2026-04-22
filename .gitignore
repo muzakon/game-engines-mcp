@@ -2,7 +2,7 @@
 __pycache__
 .claude
 .pytest_cache
-Documentation/*
+docs/*
 CLAUDE.md
 *.db
 *.db-wal

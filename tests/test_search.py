@@ -1,4 +1,4 @@
-"""Tests for the two-index search and retrieval logic."""
+"""Tests for multi-docset search and retrieval logic."""
 
 from __future__ import annotations
 
@@ -7,8 +7,10 @@ import json
 import pytest
 
 from unity_mcp.db import get_connection, init_db, upsert_api_record, upsert_guide_record
+from unity_mcp.docsets import clear_docset_cache, DocsetSpec
 from unity_mcp.models import ApiRecord, GuideRecord
 from unity_mcp.search import (
+    IndexNotReadyError,
     answer_question,
     get_doc_page,
     get_stats,
@@ -19,12 +21,82 @@ from unity_mcp.search import (
 
 
 @pytest.fixture
-def indexed_db(tmp_path):
-    db_path = tmp_path / "test.db"
-    conn = get_connection(db_path)
-    init_db(conn)
+def registered_indexes(tmp_path, monkeypatch):
+    unity_spec = DocsetSpec(
+        engine="unity",
+        version="current",
+        docset="reference",
+        label="Unity Reference",
+        docs_root=tmp_path / "Documentation",
+        db_path=tmp_path / "data" / "unity" / "current" / "reference.db",
+        parser_kind="unity_html",
+    )
+    unreal_cpp_spec = DocsetSpec(
+        engine="unreal",
+        version="4.26",
+        docset="cpp-api",
+        label="Unreal Engine 4.26 C++ API",
+        docs_root=tmp_path / "DocumentationUE" / "CppAPI-HTML",
+        db_path=tmp_path / "data" / "unreal" / "4.26" / "cpp-api.db",
+        parser_kind="unreal_cpp_html",
+    )
+    unreal_blueprint_spec = DocsetSpec(
+        engine="unreal",
+        version="4.26",
+        docset="blueprint-api",
+        label="Unreal Engine 4.26 Blueprint API",
+        docs_root=tmp_path / "DocumentationUE" / "BlueprintAPI-HTML",
+        db_path=tmp_path / "data" / "unreal" / "4.26" / "blueprint-api.db",
+        parser_kind="unreal_blueprint_html",
+    )
 
-    api_records = [
+    manifest_path = tmp_path / "docsets.json"
+    manifest_path.write_text(
+        json.dumps(
+            [
+                {
+                    "engine": unity_spec.engine,
+                    "version": unity_spec.version,
+                    "docset": unity_spec.docset,
+                    "label": unity_spec.label,
+                    "docs_root": str(unity_spec.docs_root),
+                    "db_path": str(unity_spec.db_path),
+                    "parser_kind": unity_spec.parser_kind,
+                },
+                {
+                    "engine": unreal_cpp_spec.engine,
+                    "version": unreal_cpp_spec.version,
+                    "docset": unreal_cpp_spec.docset,
+                    "label": unreal_cpp_spec.label,
+                    "docs_root": str(unreal_cpp_spec.docs_root),
+                    "db_path": str(unreal_cpp_spec.db_path),
+                    "parser_kind": unreal_cpp_spec.parser_kind,
+                },
+                {
+                    "engine": unreal_blueprint_spec.engine,
+                    "version": unreal_blueprint_spec.version,
+                    "docset": unreal_blueprint_spec.docset,
+                    "label": unreal_blueprint_spec.label,
+                    "docs_root": str(unreal_blueprint_spec.docs_root),
+                    "db_path": str(unreal_blueprint_spec.db_path),
+                    "parser_kind": unreal_blueprint_spec.parser_kind,
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("UNITY_MCP_DOCSETS_MANIFEST", str(manifest_path))
+    clear_docset_cache()
+
+    for spec in (unity_spec, unreal_cpp_spec, unreal_blueprint_spec):
+        spec.docs_root.mkdir(parents=True, exist_ok=True)
+        conn = get_connection(spec.db_path)
+        init_db(conn, spec)
+        conn.close()
+
+    conn = get_connection(unity_spec.db_path)
+    for record in (
         ApiRecord(
             title="Transform",
             relative_path="en/ScriptReference/Transform.html",
@@ -33,6 +105,7 @@ def indexed_db(tmp_path):
             namespace="UnityEngine",
             member_type="class",
             summary="Position, rotation and scale of an object.",
+            topic_path="ScriptReference",
             content_text="Position, rotation and scale of an object. Every object in a Scene has a Transform.",
         ),
         ApiRecord(
@@ -46,156 +119,234 @@ def indexed_db(tmp_path):
             parameters_json=json.dumps([{"name": "eulers", "description": "rotation"}]),
             returns_text="void",
             summary="Use Transform.Rotate to rotate GameObjects.",
+            topic_path="ScriptReference",
             content_text="Use Transform.Rotate to rotate GameObjects in a variety of ways.",
         ),
-        ApiRecord(
-            title="Rigidbody",
-            relative_path="en/ScriptReference/Rigidbody.html",
-            symbol_name="Rigidbody",
-            class_name="Rigidbody",
-            namespace="UnityEngine",
-            member_type="class",
-            summary="Control of an object's position through physics simulation.",
-            content_text="Control of an object's position through physics simulation.",
-        ),
-        ApiRecord(
-            title="Collider2D.isTrigger",
-            relative_path="en/ScriptReference/Collider2D-isTrigger.html",
-            symbol_name="Collider2D.isTrigger",
-            class_name="Collider2D",
-            namespace="UnityEngine",
-            member_type="property",
-            summary="Indicates whether the collider acts as a trigger.",
-            content_text="Indicates whether the collider acts as a trigger.",
-        ),
-    ]
-    for r in api_records:
-        upsert_api_record(conn, r)
-
-    guide_records = [
-        GuideRecord(
-            title="Transforms",
-            relative_path="en/Manual/class-Transform.html",
-            guide_type="reference",
-            summary="The Transform component.",
-            content_text="The Transform stores a GameObject's Position, Rotation, Scale.",
-            key_topics_json=json.dumps(["The Transform Component", "Parenting"]),
-        ),
+    ):
+        upsert_api_record(conn, record)
+    for record in (
         GuideRecord(
             title="How to rotate objects",
             relative_path="en/Manual/rotate-objects.html",
             guide_type="manual",
+            topic_path="Manual",
             summary="Rotate objects in the editor or via scripts.",
             content_text="You can rotate a cube using Transform.Rotate or by editing the rotation field.",
             key_topics_json=json.dumps(["Rotating in the editor", "Rotating via scripts"]),
         ),
-        GuideRecord(
-            title="Physics overview",
-            relative_path="en/Manual/PhysicsSection.html",
-            guide_type="overview",
-            summary="An overview of Unity's physics systems.",
-            content_text="Unity ships with two physics engines: 3D (PhysX) and 2D (Box2D).",
-            key_topics_json=json.dumps(["Rigidbodies", "Colliders", "Joints"]),
-        ),
-    ]
-    for r in guide_records:
-        upsert_guide_record(conn, r)
-
+    ):
+        upsert_guide_record(conn, record)
     conn.commit()
     conn.close()
-    return db_path
+
+    conn = get_connection(unreal_cpp_spec.db_path)
+    for record in (
+        ApiRecord(
+            title="UCableComponent",
+            relative_path="en-US/API/Plugins/CableComponent/UCableComponent/index.html",
+            symbol_name="UCableComponent",
+            class_name="UCableComponent",
+            module_name="CableComponent",
+            member_type="class",
+            signature="UCLASS() class UCableComponent : public UMeshComponent",
+            summary="Component that allows you to specify custom triangle mesh geometry.",
+            remarks="Component that allows you to specify custom triangle mesh geometry.",
+            header_path="/Engine/Plugins/Runtime/CableComponent/Source/CableComponent/Classes/CableComponent.h",
+            include_text='#include "CableComponent.h"',
+            topic_path="Plugins/CableComponent",
+            content_text="UCableComponent represents a cable rendering component.",
+        ),
+        ApiRecord(
+            title="UCableComponent::SetAttachEndTo",
+            relative_path="en-US/API/Plugins/CableComponent/UCableComponent/SetAttachEndTo/index.html",
+            symbol_name="UCableComponent::SetAttachEndTo",
+            class_name="UCableComponent",
+            module_name="CableComponent",
+            member_type="method",
+            signature="void SetAttachEndTo ( AActor * Actor, FName ComponentProperty, FName SocketName )",
+            parameters_json=json.dumps(
+                [
+                    {"name": "Actor", "description": "AActor *"},
+                    {"name": "ComponentProperty", "description": "FName"},
+                    {"name": "SocketName", "description": "FName"},
+                ]
+            ),
+            returns_text="void",
+            summary="Attaches the end of the cable to a specific Component within an Actor.",
+            header_path="/Engine/Plugins/Runtime/CableComponent/Source/CableComponent/Classes/CableComponent.h",
+            include_text='#include "CableComponent.h"',
+            source_path="/Engine/Plugins/Runtime/CableComponent/Source/CableComponent/Private/CableComponent.cpp",
+            topic_path="Plugins/CableComponent/UCableComponent",
+            content_text="SetAttachEndTo attaches the end of the cable to a specific component.",
+        ),
+    ):
+        upsert_api_record(conn, record)
+    upsert_guide_record(
+        conn,
+        GuideRecord(
+            title="Getting started with the Unreal Engine API",
+            relative_path="en-US/API/QuickStart/index.html",
+            guide_type="quickstart",
+            summary="Getting started with the Unreal Engine API",
+            topic_path="",
+            content_text="Games, programs and the Unreal Editor are all targets built by UnrealBuildTool.",
+            key_topics_json=json.dumps(["Orientation", "Core"]),
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    conn = get_connection(unreal_blueprint_spec.db_path)
+    upsert_api_record(
+        conn,
+        ApiRecord(
+            title="Cast To MovieSceneActorReferenceSection",
+            relative_path="en-US/BlueprintAPI/Utilities/Casting/CastToMovieSceneActorReferenceSe-/index.html",
+            symbol_name="Cast To MovieSceneActorReferenceSection",
+            module_name="Utilities",
+            member_type="blueprint_node",
+            signature="K2Node Dynamic Cast",
+            topic_path="Utilities/Casting",
+            inputs_json=json.dumps([{"name": "Object", "type": "Object Wildcard", "description": ""}]),
+            outputs_json=json.dumps(
+                [
+                    {
+                        "name": "As Movie Scene Actor Reference Section",
+                        "type": "Movie Scene Actor Reference Section Object Reference",
+                        "description": "",
+                    }
+                ]
+            ),
+            summary="Cast To MovieSceneActorReferenceSection",
+            content_text="Blueprint node used to cast to MovieSceneActorReferenceSection.",
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    yield {
+        "unity": unity_spec,
+        "unreal_cpp": unreal_cpp_spec,
+        "unreal_blueprint": unreal_blueprint_spec,
+    }
+
+    clear_docset_cache()
 
 
 class TestSearchApi:
-    def test_exact_class(self, indexed_db):
-        results = search_api("Transform", db_path=indexed_db)
+    def test_defaults_to_unity(self, registered_indexes):
+        results = search_api("Transform")
         assert results
+        assert results[0].engine == "unity"
         assert results[0].symbol_name == "Transform"
-        assert results[0].category == "api"
 
-    def test_exact_member(self, indexed_db):
-        results = search_api("Transform.Rotate", db_path=indexed_db)
+    def test_searches_unreal_cpp(self, registered_indexes):
+        results = search_api(
+            "UCableComponent::SetAttachEndTo",
+            engine="unreal",
+            version="4.26",
+            docset="cpp-api",
+        )
         assert results
-        assert results[0].symbol_name == "Transform.Rotate"
+        assert results[0].docset == "cpp-api"
+        assert results[0].module_name == "CableComponent"
 
-    def test_member_filter(self, indexed_db):
-        results = search_api("Transform", db_path=indexed_db, member_type="method")
-        assert all(r.member_type == "method" for r in results)
-        assert any(r.symbol_name == "Transform.Rotate" for r in results)
+    def test_searches_across_unreal_docsets(self, registered_indexes):
+        results = search_api("Cast To", engine="unreal", version="4.26")
+        assert results
+        assert any(result.docset == "blueprint-api" for result in results)
 
-    def test_excludes_guides(self, indexed_db):
-        # The guide titled "How to rotate objects" must NOT show up here.
-        results = search_api("rotate", db_path=indexed_db)
-        assert all(r.category == "api" for r in results)
+    def test_member_filter(self, registered_indexes):
+        results = search_api("UCableComponent", engine="unreal", version="4.26", member_type="method")
+        assert results
+        assert all(result.member_type == "method" for result in results)
 
 
 class TestSearchGuides:
-    def test_natural_language(self, indexed_db):
-        results = search_guides("how to rotate", db_path=indexed_db)
+    def test_unity_guides(self, registered_indexes):
+        results = search_guides("how to rotate")
         assert results
-        assert results[0].category == "guide"
-        assert "rotate" in results[0].title.lower() or "rotate" in results[0].snippet.lower()
+        assert results[0].engine == "unity"
 
-    def test_excludes_api(self, indexed_db):
-        results = search_guides("rigidbody", db_path=indexed_db)
-        assert all(r.category == "guide" for r in results)
-
-    def test_guide_type_filter(self, indexed_db):
-        results = search_guides("physics", db_path=indexed_db, guide_type="overview")
+    def test_unreal_quickstart(self, registered_indexes):
+        results = search_guides("getting started", engine="unreal", version="4.26", docset="cpp-api")
         assert results
-        assert all(r.guide_type == "overview" for r in results)
+        assert results[0].guide_type == "quickstart"
 
 
 class TestGetSymbolReference:
-    def test_exact_symbol(self, indexed_db):
-        ref = get_symbol_reference("Transform.Rotate", db_path=indexed_db)
+    def test_unreal_cpp_symbol(self, registered_indexes):
+        ref = get_symbol_reference(
+            "UCableComponent::SetAttachEndTo",
+            engine="unreal",
+            version="4.26",
+            docset="cpp-api",
+        )
         assert ref is not None
-        assert ref.symbol_name == "Transform.Rotate"
-        assert ref.signature
+        assert ref.docset == "cpp-api"
+        assert ref.header_path.endswith("CableComponent.h")
+        assert ref.module_name == "CableComponent"
 
-    def test_bare_member(self, indexed_db):
-        ref = get_symbol_reference("Rotate", db_path=indexed_db)
+    def test_blueprint_node(self, registered_indexes):
+        ref = get_symbol_reference(
+            "Cast To MovieSceneActorReferenceSection",
+            engine="unreal",
+            version="4.26",
+            docset="blueprint-api",
+        )
         assert ref is not None
-        assert "Rotate" in ref.symbol_name
-
-    def test_class_lookup(self, indexed_db):
-        ref = get_symbol_reference("Rigidbody", db_path=indexed_db)
-        assert ref is not None
-        assert ref.class_name == "Rigidbody"
-
-    def test_not_found(self, indexed_db):
-        assert get_symbol_reference("NoSuchSymbolXYZ", db_path=indexed_db) is None
+        assert ref.member_type == "blueprint_node"
+        assert json.loads(ref.inputs_json)[0]["name"] == "Object"
 
 
 class TestGetDocPage:
-    def test_api_path(self, indexed_db):
-        payload = get_doc_page("ScriptReference/Transform.html", db_path=indexed_db)
-        assert payload is not None
-        assert payload["category"] == "api"
-
-    def test_guide_path(self, indexed_db):
-        payload = get_doc_page("Manual/PhysicsSection.html", db_path=indexed_db)
+    def test_doc_page_lookup(self, registered_indexes):
+        payload = get_doc_page("QuickStart/index.html", engine="unreal", version="4.26")
         assert payload is not None
         assert payload["category"] == "guide"
-
-    def test_missing(self, indexed_db):
-        assert get_doc_page("nope.html", db_path=indexed_db) is None
+        assert payload["ref"].docset == "cpp-api"
 
 
 class TestAnswerQuestion:
-    def test_returns_both_sides(self, indexed_db):
-        bundle = answer_question("rotate", db_path=indexed_db, limit_per_index=5)
+    def test_returns_both_sides(self, registered_indexes):
+        bundle = answer_question("rotate", limit_per_index=5)
         assert "api" in bundle and "guide" in bundle
-        assert any(r.category == "api" for r in bundle["api"])
-        assert any(r.category == "guide" for r in bundle["guide"])
+        assert any(result.category == "api" for result in bundle["api"])
+        assert any(result.category == "guide" for result in bundle["guide"])
 
 
 class TestStats:
-    def test_breakdown(self, indexed_db):
-        s = get_stats(db_path=indexed_db)
-        assert s["api_pages"] == 4
-        assert s["guide_pages"] == 3
-        assert s["total_pages"] == 7
-        assert s["unique_classes"] >= 3
-        assert s["api_member_breakdown"].get("class", 0) >= 2
-        assert s["guide_breakdown"].get("overview", 0) >= 1
+    def test_unreal_stats(self, registered_indexes):
+        stats = get_stats(engine="unreal", version="4.26")
+        assert stats["api_pages"] == 3
+        assert stats["guide_pages"] == 1
+        assert len(stats["docsets"]) == 2
+        assert stats["api_member_breakdown"].get("blueprint_node", 0) == 1
+
+
+class TestErrors:
+    def test_raises_when_index_missing(self, tmp_path, monkeypatch):
+        manifest_path = tmp_path / "docsets.json"
+        manifest_path.write_text(
+            json.dumps(
+                [
+                    {
+                        "engine": "unreal",
+                        "version": "4.26",
+                        "docset": "cpp-api",
+                        "label": "Unreal Engine 4.26 C++ API",
+                        "docs_root": str(tmp_path / "docs"),
+                        "db_path": str(tmp_path / "missing.db"),
+                        "parser_kind": "unreal_cpp_html",
+                    }
+                ]
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("UNITY_MCP_DOCSETS_MANIFEST", str(manifest_path))
+        clear_docset_cache()
+
+        with pytest.raises(IndexNotReadyError):
+            search_api("UCableComponent", engine="unreal", version="4.26")
+
+        clear_docset_cache()

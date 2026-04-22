@@ -1,3 +1,3 @@
-"""Unity MCP - Local MCP server for offline Unity documentation."""
+"""Multi-engine MCP server for offline game engine documentation."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

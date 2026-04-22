@@ -1,79 +1,131 @@
-"""Search & retrieval over the indexed documentation.
-
-Two clearly-separated paths:
-- search_api()    -> precise symbol/class/member lookup (api_records + api_fts)
-- search_guides() -> conceptual / how-to lookup        (guide_records + guide_fts)
-
-answer_question() runs both and labels every result so the caller can tell
-where each hit came from.
-"""
+"""Search and retrieval over one or more indexed docsets."""
 
 from __future__ import annotations
 
 import re
 import sqlite3
+from collections import Counter
 from pathlib import Path
 from typing import Optional
 
-from .config import DEFAULT_SEARCH_LIMIT, MAX_SEARCH_LIMIT
+from .config import DEFAULT_ENGINE, DEFAULT_SEARCH_LIMIT, MAX_SEARCH_LIMIT
 from .db import get_connection
+from .docsets import DocsetSpec, select_docsets
 from .models import GuideReference, SearchResult, SymbolReference
 
 
-# ---------------------------------------------------------------------------
-# Query sanitization
-# ---------------------------------------------------------------------------
+class IndexNotReadyError(RuntimeError):
+    """Raised when a selected docset exists but has not been indexed yet."""
 
-# Tokens FTS5 treats as operators/structure; stripped from caller input so we
-# never have to worry about a stray quote crashing a parse.
+
 _FTS_RESERVED = re.compile(r'[\"\(\)\*\:\^]')
+
+# api_fts columns:
+# (symbol_name, title, class_name, namespace, module_name, topic_path,
+#  signature, summary, remarks, content_text)
+_API_BM25_WEIGHTS = "12.0, 9.0, 6.0, 3.0, 5.0, 3.0, 2.0, 1.5, 1.0, 0.5"
+
+# guide_fts columns: (title, topic_path, key_topics, summary, content_text)
+_GUIDE_BM25_WEIGHTS = "8.0, 4.0, 5.0, 3.0, 1.0"
 
 
 def _fts_terms(query: str) -> list[str]:
-    """Split a free-form query into FTS-safe terms."""
     cleaned = _FTS_RESERVED.sub(" ", query).strip()
-    return [t for t in re.split(r"\s+", cleaned) if t]
+    return [term for term in re.split(r"\s+", cleaned) if term]
 
 
 def _fts_phrase(query: str) -> str:
-    """Wrap the query as a single quoted phrase for exact-phrase MATCH."""
     safe = query.replace('"', '""').strip()
     return f'"{safe}"'
 
 
 def _fts_or(terms: list[str]) -> str:
-    """Build an `a OR b OR c` MATCH expression with prefix tolerance."""
-    return " OR ".join(f"{t}*" for t in terms)
+    return " OR ".join(f"{term}*" for term in terms)
 
 
-# ---------------------------------------------------------------------------
-# API search
-# ---------------------------------------------------------------------------
+def _resolve_indexed_docsets(
+    *,
+    engine: str | None,
+    version: str | None,
+    docset: str | None,
+    default_to_unity: bool = True,
+) -> list[DocsetSpec]:
+    specs = select_docsets(
+        engine=engine,
+        version=version,
+        docset=docset,
+        default_to_unity=default_to_unity,
+    )
+    if not specs:
+        raise ValueError("No matching documentation targets were found.")
 
-# Field weights for bm25 — must match the api_fts column order:
-# (symbol_name, title, class_name, namespace, signature, summary, remarks, content_text)
-# Lower bm25 score = better match in SQLite's implementation, and a higher
-# weight makes a column contribute MORE to relevance, so symbol/title get the
-# strongest weights here.
-_API_BM25_WEIGHTS = "10.0, 8.0, 5.0, 3.0, 2.0, 1.5, 1.0, 0.5"
+    indexed = [spec for spec in specs if spec.indexed]
+    if indexed:
+        return indexed
+
+    labels = ", ".join(spec.key for spec in specs)
+    raise IndexNotReadyError(
+        f"No index database is available for the selected docset(s): {labels}. "
+        "Build the index first with scripts/build_index.py."
+    )
 
 
-def search_api(
+def _api_row_to_result(
+    row: sqlite3.Row,
+    snippet: str,
+    score: float,
+    spec: DocsetSpec,
+) -> SearchResult:
+    return SearchResult(
+        id=row["id"],
+        category="api",
+        title=row["title"],
+        relative_path=row["relative_path"],
+        snippet=(snippet or "")[:500],
+        score=score,
+        engine=spec.engine,
+        version=spec.version,
+        docset=spec.docset,
+        docset_label=spec.label,
+        symbol_name=row["symbol_name"] or "",
+        class_name=row["class_name"] or "",
+        namespace=row["namespace"] or "",
+        member_type=row["member_type"] or "",
+        module_name=row["module_name"] or "",
+        topic_path=row["topic_path"] or "",
+    )
+
+
+def _guide_row_to_result(
+    row: sqlite3.Row,
+    snippet: str,
+    score: float,
+    spec: DocsetSpec,
+) -> SearchResult:
+    return SearchResult(
+        id=row["id"],
+        category="guide",
+        title=row["title"],
+        relative_path=row["relative_path"],
+        snippet=(snippet or "")[:500],
+        score=score,
+        engine=spec.engine,
+        version=spec.version,
+        docset=spec.docset,
+        docset_label=spec.label,
+        guide_type=row["guide_type"] if "guide_type" in row.keys() else "",
+        topic_path=row["topic_path"] if "topic_path" in row.keys() else "",
+    )
+
+
+def _search_api_single_docset(
     query: str,
-    limit: int = DEFAULT_SEARCH_LIMIT,
+    spec: DocsetSpec,
+    *,
+    limit: int,
     member_type: Optional[str] = None,
-    db_path: Optional[Path] = None,
 ) -> list[SearchResult]:
-    """Precise API/symbol search.
-
-    Order of preference:
-      1. Exact symbol_name / title / class_name match (case-insensitive)
-      2. symbol_name LIKE "%.<query>" — handles bare member names
-      3. FTS5 phrase match weighted toward symbol/title fields
-      4. FTS5 prefix-OR fallback for multi-word queries
-    """
-    limit = max(1, min(limit, MAX_SEARCH_LIMIT))
-    conn = get_connection(db_path, readonly=True)
+    conn = get_connection(spec.db_path, readonly=True)
     try:
         results: list[SearchResult] = []
         seen: set[int] = set()
@@ -81,14 +133,17 @@ def search_api(
         type_clause = " AND member_type = ? " if member_type else ""
         type_args: tuple = (member_type,) if member_type else ()
 
-        # 1. Exact matches
         rows = conn.execute(
             f"""
-            SELECT id, title, relative_path, symbol_name, class_name, namespace, member_type
+            SELECT id, title, relative_path, symbol_name, class_name, namespace,
+                   module_name, topic_path, member_type
             FROM api_records
-            WHERE (symbol_name = ?1 COLLATE NOCASE
-                OR title       = ?1 COLLATE NOCASE
-                OR class_name  = ?1 COLLATE NOCASE)
+            WHERE (
+                    symbol_name = ?1 COLLATE NOCASE
+                OR  title       = ?1 COLLATE NOCASE
+                OR  class_name  = ?1 COLLATE NOCASE
+                OR  module_name = ?1 COLLATE NOCASE
+            )
             {type_clause}
             LIMIT ?
             """,
@@ -98,37 +153,47 @@ def search_api(
             if row["id"] in seen:
                 continue
             seen.add(row["id"])
-            results.append(_api_row_to_result(row, snippet=row["symbol_name"] or row["title"], score=-1000.0))
+            results.append(
+                _api_row_to_result(
+                    row,
+                    snippet=row["symbol_name"] or row["title"],
+                    score=-1000.0,
+                    spec=spec,
+                )
+            )
 
-        # 2. Bare member name (e.g. "Rotate" -> "Transform.Rotate")
-        if len(results) < limit and "." not in query:
+        if len(results) < limit and "." not in query and "::" not in query:
             rows = conn.execute(
                 f"""
-                SELECT id, title, relative_path, symbol_name, class_name, namespace, member_type
+                SELECT id, title, relative_path, symbol_name, class_name, namespace,
+                       module_name, topic_path, member_type
                 FROM api_records
-                WHERE symbol_name LIKE ? COLLATE NOCASE {type_clause}
+                WHERE (
+                        symbol_name LIKE ? COLLATE NOCASE
+                    OR  title LIKE ? COLLATE NOCASE
+                )
+                {type_clause}
                 LIMIT ?
                 """,
-                (f"%.{query}", *type_args, limit - len(results)),
+                (f"%.{query}", f"%::{query}", *type_args, limit - len(results)),
             ).fetchall()
             for row in rows:
                 if row["id"] in seen:
                     continue
                 seen.add(row["id"])
-                results.append(_api_row_to_result(row, snippet=row["symbol_name"], score=-500.0))
+                results.append(_api_row_to_result(row, row["symbol_name"], -500.0, spec))
 
-        # 3 & 4. FTS5 ranked search
         if len(results) < limit:
             terms = _fts_terms(query)
             if terms:
-                fts_results = _fts_api(conn, _fts_phrase(query), member_type, limit)
-                if not fts_results:
-                    fts_results = _fts_api(conn, _fts_or(terms), member_type, limit)
-                for r in fts_results:
-                    if r.id in seen:
+                fts_hits = _fts_api(conn, spec, _fts_phrase(query), member_type, limit)
+                if not fts_hits:
+                    fts_hits = _fts_api(conn, spec, _fts_or(terms), member_type, limit)
+                for result in fts_hits:
+                    if result.id in seen:
                         continue
-                    seen.add(r.id)
-                    results.append(r)
+                    seen.add(result.id)
+                    results.append(result)
 
         return results[:limit]
     finally:
@@ -137,6 +202,7 @@ def search_api(
 
 def _fts_api(
     conn: sqlite3.Connection,
+    spec: DocsetSpec,
     match_expr: str,
     member_type: Optional[str],
     limit: int,
@@ -146,8 +212,8 @@ def _fts_api(
     sql = f"""
         SELECT
             r.id, r.title, r.relative_path, r.symbol_name, r.class_name,
-            r.namespace, r.member_type,
-            snippet(api_fts, 7, '>>', '<<', '...', 18) AS snippet,
+            r.namespace, r.module_name, r.topic_path, r.member_type,
+            snippet(api_fts, 9, '>>', '<<', '...', 18) AS snippet,
             bm25(api_fts, {_API_BM25_WEIGHTS}) AS score
         FROM api_fts
         JOIN api_records r ON r.id = api_fts.rowid
@@ -159,48 +225,17 @@ def _fts_api(
         rows = conn.execute(sql, (match_expr, *type_args, limit)).fetchall()
     except sqlite3.OperationalError:
         return []
-    return [_api_row_to_result(row, snippet=row["snippet"], score=row["score"]) for row in rows]
+    return [_api_row_to_result(row, row["snippet"], row["score"], spec) for row in rows]
 
 
-def _api_row_to_result(row: sqlite3.Row, snippet: str, score: float) -> SearchResult:
-    return SearchResult(
-        id=row["id"],
-        category="api",
-        title=row["title"],
-        relative_path=row["relative_path"],
-        snippet=(snippet or "")[:500],
-        score=score,
-        symbol_name=row["symbol_name"] or "",
-        class_name=row["class_name"] or "",
-        namespace=row["namespace"] or "",
-        member_type=row["member_type"] or "",
-    )
-
-
-# ---------------------------------------------------------------------------
-# Guide search
-# ---------------------------------------------------------------------------
-
-# guide_fts columns: (title, key_topics, summary, content_text)
-# Title and headings carry the strongest concept signal; prose is least precise.
-_GUIDE_BM25_WEIGHTS = "8.0, 5.0, 3.0, 1.0"
-
-
-def search_guides(
+def _search_guides_single_docset(
     query: str,
-    limit: int = DEFAULT_SEARCH_LIMIT,
+    spec: DocsetSpec,
+    *,
+    limit: int,
     guide_type: Optional[str] = None,
-    db_path: Optional[Path] = None,
 ) -> list[SearchResult]:
-    """Conceptual / how-to search.
-
-    Strategy:
-      - FTS5 phrase match first (best precision).
-      - Fall back to prefix-OR over the cleaned terms for natural-language queries.
-      - Boost any title-substring match over pure FTS hits.
-    """
-    limit = max(1, min(limit, MAX_SEARCH_LIMIT))
-    conn = get_connection(db_path, readonly=True)
+    conn = get_connection(spec.db_path, readonly=True)
     try:
         results: list[SearchResult] = []
         seen: set[int] = set()
@@ -208,10 +243,9 @@ def search_guides(
         type_clause = " AND r.guide_type = ? " if guide_type else ""
         type_args: tuple = (guide_type,) if guide_type else ()
 
-        # Title substring boost — cheap and very effective for "how to X" queries.
         rows = conn.execute(
             f"""
-            SELECT id, title, relative_path, guide_type, summary
+            SELECT id, title, relative_path, guide_type, topic_path, summary
             FROM guide_records r
             WHERE title LIKE ? COLLATE NOCASE {type_clause}
             LIMIT ?
@@ -222,21 +256,19 @@ def search_guides(
             if row["id"] in seen:
                 continue
             seen.add(row["id"])
-            results.append(_guide_row_to_result(
-                row, snippet=row["summary"] or row["title"], score=-100.0,
-            ))
+            results.append(_guide_row_to_result(row, row["summary"] or row["title"], -100.0, spec))
 
         if len(results) < limit:
             terms = _fts_terms(query)
             if terms:
-                fts_hits = _fts_guides(conn, _fts_phrase(query), guide_type, limit)
+                fts_hits = _fts_guides(conn, spec, _fts_phrase(query), guide_type, limit)
                 if not fts_hits:
-                    fts_hits = _fts_guides(conn, _fts_or(terms), guide_type, limit)
-                for r in fts_hits:
-                    if r.id in seen:
+                    fts_hits = _fts_guides(conn, spec, _fts_or(terms), guide_type, limit)
+                for result in fts_hits:
+                    if result.id in seen:
                         continue
-                    seen.add(r.id)
-                    results.append(r)
+                    seen.add(result.id)
+                    results.append(result)
 
         return results[:limit]
     finally:
@@ -245,6 +277,7 @@ def search_guides(
 
 def _fts_guides(
     conn: sqlite3.Connection,
+    spec: DocsetSpec,
     match_expr: str,
     guide_type: Optional[str],
     limit: int,
@@ -253,8 +286,8 @@ def _fts_guides(
     type_args: tuple = (guide_type,) if guide_type else ()
     sql = f"""
         SELECT
-            r.id, r.title, r.relative_path, r.guide_type, r.summary,
-            snippet(guide_fts, 3, '>>', '<<', '...', 22) AS snippet,
+            r.id, r.title, r.relative_path, r.guide_type, r.topic_path, r.summary,
+            snippet(guide_fts, 4, '>>', '<<', '...', 22) AS snippet,
             bm25(guide_fts, {_GUIDE_BM25_WEIGHTS}) AS score
         FROM guide_fts
         JOIN guide_records r ON r.id = guide_fts.rowid
@@ -266,81 +299,112 @@ def _fts_guides(
         rows = conn.execute(sql, (match_expr, *type_args, limit)).fetchall()
     except sqlite3.OperationalError:
         return []
-    return [_guide_row_to_result(row, snippet=row["snippet"], score=row["score"]) for row in rows]
+    return [_guide_row_to_result(row, row["snippet"], row["score"], spec) for row in rows]
 
 
-def _guide_row_to_result(row: sqlite3.Row, snippet: str, score: float) -> SearchResult:
-    return SearchResult(
-        id=row["id"],
-        category="guide",
-        title=row["title"],
-        relative_path=row["relative_path"],
-        snippet=(snippet or "")[:500],
-        score=score,
-        guide_type=row["guide_type"] if "guide_type" in row.keys() else "",
-    )
+def search_api(
+    query: str,
+    limit: int = DEFAULT_SEARCH_LIMIT,
+    member_type: Optional[str] = None,
+    *,
+    engine: str = DEFAULT_ENGINE,
+    version: str | None = None,
+    docset: str | None = None,
+) -> list[SearchResult]:
+    limit = max(1, min(limit, MAX_SEARCH_LIMIT))
+    specs = _resolve_indexed_docsets(engine=engine, version=version, docset=docset)
+
+    results: list[SearchResult] = []
+    per_docset_limit = max(limit, 10)
+    for spec in specs:
+        results.extend(
+            _search_api_single_docset(query, spec, limit=per_docset_limit, member_type=member_type)
+        )
+    results.sort(key=lambda item: (item.score, item.title.lower(), item.relative_path.lower()))
+    return results[:limit]
 
 
-# ---------------------------------------------------------------------------
-# Combined "answer a question" path
-# ---------------------------------------------------------------------------
+def search_guides(
+    query: str,
+    limit: int = DEFAULT_SEARCH_LIMIT,
+    guide_type: Optional[str] = None,
+    *,
+    engine: str = DEFAULT_ENGINE,
+    version: str | None = None,
+    docset: str | None = None,
+) -> list[SearchResult]:
+    limit = max(1, min(limit, MAX_SEARCH_LIMIT))
+    specs = _resolve_indexed_docsets(engine=engine, version=version, docset=docset)
+
+    results: list[SearchResult] = []
+    per_docset_limit = max(limit, 10)
+    for spec in specs:
+        results.extend(
+            _search_guides_single_docset(query, spec, limit=per_docset_limit, guide_type=guide_type)
+        )
+    results.sort(key=lambda item: (item.score, item.title.lower(), item.relative_path.lower()))
+    return results[:limit]
+
 
 def answer_question(
     query: str,
     limit_per_index: int = 5,
-    db_path: Optional[Path] = None,
+    *,
+    engine: str = DEFAULT_ENGINE,
+    version: str | None = None,
+    docset: str | None = None,
 ) -> dict[str, list[SearchResult]]:
-    """Run both indexes, return a labeled bundle.
-
-    Caller (or LLM) can decide whether the question is API-precise or
-    conceptual based on which side returned the strongest matches.
-    """
     limit_per_index = max(1, min(limit_per_index, MAX_SEARCH_LIMIT))
     return {
-        "api": search_api(query, limit=limit_per_index, db_path=db_path),
-        "guide": search_guides(query, limit=limit_per_index, db_path=db_path),
+        "api": search_api(query, limit=limit_per_index, engine=engine, version=version, docset=docset),
+        "guide": search_guides(
+            query,
+            limit=limit_per_index,
+            engine=engine,
+            version=version,
+            docset=docset,
+        ),
     }
 
 
-# ---------------------------------------------------------------------------
-# Symbol lookup (API only)
-# ---------------------------------------------------------------------------
-
-def get_symbol_reference(
+def _symbol_reference_single(
     symbol: str,
-    db_path: Optional[Path] = None,
-) -> Optional[SymbolReference]:
-    """Look up a single API symbol with structured fields."""
-    conn = get_connection(db_path, readonly=True)
+    spec: DocsetSpec,
+) -> tuple[int, SymbolReference] | None:
+    conn = get_connection(spec.db_path, readonly=True)
     try:
-        # 1. Exact symbol_name (Transform.Rotate)
         row = conn.execute(
             "SELECT * FROM api_records WHERE symbol_name = ? COLLATE NOCASE LIMIT 1",
             (symbol,),
         ).fetchone()
+        rank = 0
 
-        # 2. Exact title
         if not row:
             row = conn.execute(
                 "SELECT * FROM api_records WHERE title = ? COLLATE NOCASE LIMIT 1",
                 (symbol,),
             ).fetchone()
+            rank = 1
 
-        # 3. Bare member name
-        if not row and "." not in symbol:
+        if not row and "." not in symbol and "::" not in symbol:
             row = conn.execute(
-                "SELECT * FROM api_records WHERE symbol_name LIKE ? COLLATE NOCASE LIMIT 1",
-                (f"%.{symbol}",),
+                """
+                SELECT * FROM api_records
+                WHERE symbol_name LIKE ? COLLATE NOCASE
+                   OR title LIKE ? COLLATE NOCASE
+                LIMIT 1
+                """,
+                (f"%.{symbol}", f"%::{symbol}"),
             ).fetchone()
+            rank = 2
 
-        # 4. Exact class
         if not row:
             row = conn.execute(
                 "SELECT * FROM api_records WHERE class_name = ? COLLATE NOCASE LIMIT 1",
                 (symbol,),
             ).fetchone()
+            rank = 3
 
-        # 5. FTS over symbol-weighted columns
         if not row:
             try:
                 row = conn.execute(
@@ -353,29 +417,55 @@ def get_symbol_reference(
                     """,
                     (_fts_phrase(symbol),),
                 ).fetchone()
+                rank = 4
             except sqlite3.OperationalError:
                 row = None
 
-        return SymbolReference.from_row(dict(row)) if row else None
+        if not row:
+            return None
+
+        return (
+            rank,
+            SymbolReference.from_row(
+                dict(row),
+                engine=spec.engine,
+                version=spec.version,
+                docset=spec.docset,
+                docset_label=spec.label,
+            ),
+        )
     finally:
         conn.close()
 
 
-# ---------------------------------------------------------------------------
-# Page lookup (either category)
-# ---------------------------------------------------------------------------
+def get_symbol_reference(
+    symbol: str,
+    *,
+    engine: str = DEFAULT_ENGINE,
+    version: str | None = None,
+    docset: str | None = None,
+) -> Optional[SymbolReference]:
+    specs = _resolve_indexed_docsets(engine=engine, version=version, docset=docset)
+    candidates: list[tuple[int, SymbolReference]] = []
+    for spec in specs:
+        hit = _symbol_reference_single(symbol, spec)
+        if hit:
+            candidates.append(hit)
+    if not candidates:
+        return None
+    candidates.sort(
+        key=lambda item: (
+            item[0],
+            len(item[1].relative_path),
+            item[1].docset_label.lower(),
+            item[1].title.lower(),
+        )
+    )
+    return candidates[0][1]
 
-def get_doc_page(
-    path_or_key: str,
-    db_path: Optional[Path] = None,
-) -> Optional[dict]:
-    """Retrieve a doc page by path/substring from either index.
 
-    Returns a dict: {"category": "api"|"guide", "ref": <SymbolReference|GuideReference>}.
-    Tries the API table first (ScriptReference paths are more specific); on miss,
-    falls back to guides.
-    """
-    conn = get_connection(db_path, readonly=True)
+def _doc_page_single(path_or_key: str, spec: DocsetSpec) -> tuple[int, dict] | None:
+    conn = get_connection(spec.db_path, readonly=True)
     try:
         for category, table, builder in (
             ("api", "api_records", SymbolReference.from_row),
@@ -386,53 +476,134 @@ def get_doc_page(
                 SELECT * FROM {table}
                 WHERE relative_path = ? COLLATE NOCASE
                    OR relative_path LIKE ? COLLATE NOCASE
-                ORDER BY length(relative_path)
+                ORDER BY
+                    CASE WHEN relative_path = ? COLLATE NOCASE THEN 0 ELSE 1 END,
+                    length(relative_path)
                 LIMIT 1
                 """,
-                (path_or_key, f"%{path_or_key}%"),
+                (path_or_key, f"%{path_or_key}%", path_or_key),
             ).fetchone()
-            if row:
-                return {"category": category, "ref": builder(dict(row))}
+            if not row:
+                continue
+            ref = builder(
+                dict(row),
+                engine=spec.engine,
+                version=spec.version,
+                docset=spec.docset,
+                docset_label=spec.label,
+            )
+            priority = 0 if row["relative_path"].lower() == path_or_key.lower() else 1
+            return priority, {"category": category, "ref": ref}
         return None
     finally:
         conn.close()
 
 
-# ---------------------------------------------------------------------------
-# Stats
-# ---------------------------------------------------------------------------
+def get_doc_page(
+    path_or_key: str,
+    *,
+    engine: str = DEFAULT_ENGINE,
+    version: str | None = None,
+    docset: str | None = None,
+) -> Optional[dict]:
+    specs = _resolve_indexed_docsets(engine=engine, version=version, docset=docset)
+    candidates: list[tuple[int, dict]] = []
+    for spec in specs:
+        hit = _doc_page_single(path_or_key, spec)
+        if hit:
+            candidates.append(hit)
+    if not candidates:
+        return None
+    candidates.sort(
+        key=lambda item: (
+            item[0],
+            len(item[1]["ref"].relative_path),
+            item[1]["ref"].docset_label.lower(),
+        )
+    )
+    return candidates[0][1]
 
-def get_stats(db_path: Optional[Path] = None) -> dict:
-    conn = get_connection(db_path, readonly=True)
-    try:
-        api_total = conn.execute("SELECT COUNT(*) FROM api_records").fetchone()[0]
-        guide_total = conn.execute("SELECT COUNT(*) FROM guide_records").fetchone()[0]
-        unique_classes = conn.execute(
-            "SELECT COUNT(DISTINCT class_name) FROM api_records WHERE class_name != ''"
-        ).fetchone()[0]
-        unique_namespaces = conn.execute(
-            "SELECT COUNT(DISTINCT namespace) FROM api_records WHERE namespace != ''"
-        ).fetchone()[0]
-        guide_breakdown = {
-            row["guide_type"]: row["c"]
-            for row in conn.execute(
-                "SELECT guide_type, COUNT(*) AS c FROM guide_records GROUP BY guide_type"
-            ).fetchall()
-        }
-        member_breakdown = {
-            row["member_type"]: row["c"]
-            for row in conn.execute(
-                "SELECT member_type, COUNT(*) AS c FROM api_records GROUP BY member_type"
-            ).fetchall()
-        }
-        return {
-            "api_pages": api_total,
-            "guide_pages": guide_total,
-            "total_pages": api_total + guide_total,
-            "unique_classes": unique_classes,
-            "unique_namespaces": unique_namespaces,
-            "guide_breakdown": guide_breakdown,
-            "api_member_breakdown": member_breakdown,
-        }
-    finally:
-        conn.close()
+
+def get_stats(
+    *,
+    engine: str | None = None,
+    version: str | None = None,
+    docset: str | None = None,
+) -> dict:
+    specs = _resolve_indexed_docsets(
+        engine=engine,
+        version=version,
+        docset=docset,
+        default_to_unity=not any([engine, version, docset]),
+    )
+
+    api_total = 0
+    guide_total = 0
+    unique_classes: set[str] = set()
+    unique_namespaces: set[str] = set()
+    guide_breakdown: Counter[str] = Counter()
+    member_breakdown: Counter[str] = Counter()
+    docset_rows: list[dict[str, object]] = []
+
+    for spec in specs:
+        conn = get_connection(spec.db_path, readonly=True)
+        try:
+            api_pages = conn.execute("SELECT COUNT(*) FROM api_records").fetchone()[0]
+            guide_pages = conn.execute("SELECT COUNT(*) FROM guide_records").fetchone()[0]
+            api_total += api_pages
+            guide_total += guide_pages
+
+            unique_classes.update(
+                row[0]
+                for row in conn.execute(
+                    "SELECT DISTINCT class_name FROM api_records WHERE class_name != ''"
+                ).fetchall()
+            )
+            unique_namespaces.update(
+                row[0]
+                for row in conn.execute(
+                    "SELECT DISTINCT namespace FROM api_records WHERE namespace != ''"
+                ).fetchall()
+            )
+            member_breakdown.update(
+                {
+                    row["member_type"]: row["c"]
+                    for row in conn.execute(
+                        "SELECT member_type, COUNT(*) AS c FROM api_records GROUP BY member_type"
+                    ).fetchall()
+                }
+            )
+            guide_breakdown.update(
+                {
+                    row["guide_type"]: row["c"]
+                    for row in conn.execute(
+                        "SELECT guide_type, COUNT(*) AS c FROM guide_records GROUP BY guide_type"
+                    ).fetchall()
+                }
+            )
+            docset_rows.append(
+                {
+                    "key": spec.key,
+                    "label": spec.label,
+                    "engine": spec.engine,
+                    "version": spec.version,
+                    "docset": spec.docset,
+                    "api_pages": api_pages,
+                    "guide_pages": guide_pages,
+                    "docs_root": str(spec.docs_root),
+                    "db_path": str(spec.db_path),
+                }
+            )
+        finally:
+            conn.close()
+
+    return {
+        "docsets": docset_rows,
+        "api_pages": api_total,
+        "guide_pages": guide_total,
+        "total_pages": api_total + guide_total,
+        "unique_classes": len(unique_classes),
+        "unique_namespaces": len(unique_namespaces),
+        "guide_breakdown": dict(guide_breakdown),
+        "api_member_breakdown": dict(member_breakdown),
+    }

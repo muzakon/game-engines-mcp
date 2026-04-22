@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the Unity MCP server over stdio."""
+"""Run the game-engine docs MCP server."""
 
 from __future__ import annotations
 

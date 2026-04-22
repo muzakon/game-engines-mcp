@@ -1,7 +1,7 @@
 [project]
 name = "unity-mcp"
-version = "0.1.0"
-description = "Local MCP server for querying offline Unity documentation via SQLite FTS5"
+version = "0.2.0"
+description = "Local MCP server for querying offline game engine documentation via SQLite FTS5"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

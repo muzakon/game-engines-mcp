@@ -1,242 +1,206 @@
 # unity-mcp
 
-A local MCP (Model Context Protocol) server that indexes offline Unity documentation into SQLite with FTS5 full-text search, then exposes MCP tools so Claude, Codex, and other MCP clients can query Unity documentation accurately without hallucinating APIs.
+An MCP server for offline game engine documentation. The codebase now supports multiple engines, multiple versions, and multiple docsets without collapsing everything into one database.
 
-## How It Works
+Current built-in docsets:
 
-1. **Build step**: Recursively scans `Documentation/` for HTML files, parses structured data from each page (title, symbol, class, namespace, signature, parameters, summary, etc.), and stores everything in a local SQLite database with an FTS5 virtual table for fast text search.
-2. **Server step**: Runs an MCP server (HTTP or stdio transport) that exposes tools for searching docs, retrieving pages, and looking up symbols by name.
+- `unity:current:reference` -> Unity Manual + ScriptReference from `docs/unity/current/reference/`
+- `unreal:4.26:cpp-api` -> Unreal Engine 4.26 C++ API from `docs/unreal/4.26/cpp-api/`
+- `unreal:4.26:blueprint-api` -> Unreal Engine 4.26 Blueprint API from `docs/unreal/4.26/blueprint-api/`
+
+## Architecture
+
+The repo is organized around **docsets**. A docset is one engine/version/documentation-slice combination such as `unreal:4.26:cpp-api`.
+
+Each docset has:
+
+- A source directory on disk
+- A parser kind
+- Its own SQLite database under `data/<engine>/<version>/<docset>.db`
+- Its own API and guide indexes inside that database
+
+That separation is intentional:
+
+- Unreal C++ has roughly hundreds of thousands of pages and should not share a giant mixed index with Unity.
+- Different engines can keep different parsing logic and metadata fields while still using one search/index/server pipeline.
+- Future engines or versions are added by registering a new docset, not by cloning the whole server.
+
+Canonical source layout:
+
+```text
+docs/
+  <engine>/
+    <version>/
+      <docset>/
+```
+
+Examples:
+
+- `docs/unity/current/reference/`
+- `docs/unreal/4.26/cpp-api/`
+- `docs/unreal/4.26/blueprint-api/`
+
+The docset registry lives in [`docsets.json`](docsets.json). Adding a new engine/version/docset usually means:
+
+1. Add a new entry to `docsets.json`
+2. Reuse an existing parser kind or add a new parser
+3. Build that docset’s index
 
 ## Project Structure
 
-```
+```text
 unity-mcp/
-  Documentation/          # Offline Unity HTML docs (source of truth)
+  docsets.json                 # Registry of engine/version/docset targets
+  docs/                        # All offline docs in engine/version/docset layout
   src/unity_mcp/
-    __init__.py           # Package init
-    config.py             # Paths and constants
-    models.py             # Data models (DocRecord, SearchResult, SymbolReference)
-    db.py                 # SQLite schema, connection management, upsert
-    parser.py             # HTML parser for Unity doc pages
-    indexer.py            # Orchestrates scanning + parsing + storing
-    search.py             # Full-text search and symbol lookup logic
-    server.py             # MCP server with tool definitions
-    utils.py              # Formatting helpers
+    config.py                  # Global constants and defaults
+    docsets.py                 # Docset manifest loading and selection
+    models.py                  # Shared record/result/reference models
+    db.py                      # Common SQLite schema for per-docset databases
+    parser.py                  # Parser dispatch + file discovery
+    parsers/
+      unity.py                 # Unity HTML parser
+      unreal.py                # Unreal C++ / Blueprint HTML parsers
+    indexer.py                 # Single-docset and multi-docset index builders
+    search.py                  # Multi-docset search and retrieval
+    server.py                  # MCP tools and compatibility wrappers
+    utils.py                   # Formatting helpers
   scripts/
-    build_index.py        # Build/rebuild the SQLite index
-    run_server.py         # Run the MCP server
-  data/
-    unity_docs.db         # SQLite database (generated)
+    build_index.py             # Build indexes for selected docsets
+    run_server.py              # Start the MCP server
   tests/
-    test_parser.py        # Parser tests
-    test_search.py        # Search tests
-  pyproject.toml
 ```
 
 ## Installation
 
-Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/).
+Requires Python 3.11+ and `uv`.
 
 ```bash
-cd unity-mcp
 uv sync
 ```
 
-## Build the Index
+## List Registered Docsets
+
+```bash
+uv run python scripts/build_index.py --list-docsets
+```
+
+## Build Indexes
+
+Build the default Unity index:
 
 ```bash
 uv run python scripts/build_index.py
 ```
 
-With verbose output:
+Build a specific Unreal docset:
 
 ```bash
-uv run python scripts/build_index.py -v
+uv run python scripts/build_index.py --engine unreal --version 4.26 --docset cpp-api
+uv run python scripts/build_index.py --engine unreal --version 4.26 --docset blueprint-api
 ```
 
-Incremental update (no rebuild):
+Build all registered docsets that exist on disk:
 
 ```bash
-uv run python scripts/build_index.py --no-rebuild
+uv run python scripts/build_index.py --all
+```
+
+Incremental rebuild:
+
+```bash
+uv run python scripts/build_index.py --engine unreal --version 4.26 --docset cpp-api --no-rebuild
 ```
 
 ## Run the MCP Server
 
-### HTTP Transport (default)
-
-Starts a streamable HTTP server on `http://0.0.0.0:<PORT>/mcp` (default port `8080`):
+HTTP transport:
 
 ```bash
 uv run python scripts/run_server.py
 ```
 
-Custom host and port via CLI flags:
-
-```bash
-uv run python scripts/run_server.py --host=127.0.0.1 --port=3000
-```
-
-Or via environment variables:
-
-```bash
-UNITY_MCP_HOST=127.0.0.1 UNITY_MCP_PORT=3000 uv run python scripts/run_server.py
-```
-
-### Stdio Transport
-
-For clients that spawn the server as a child process:
+Stdio transport:
 
 ```bash
 uv run python scripts/run_server.py --stdio
 ```
 
-## Docker
+Environment variables:
 
-A `Makefile` is provided for building and running with Docker. Port is read from the `.env` file.
+- `GAME_DOCS_MCP_HOST`
+- `GAME_DOCS_MCP_PORT`
+
+Legacy Unity env vars still work:
+
+- `UNITY_MCP_HOST`
+- `UNITY_MCP_PORT`
+
+## MCP Tools
+
+Primary tools:
+
+- `list_documentation_targets`
+- `search_api_reference`
+- `search_engine_guides`
+- `get_engine_symbol_reference`
+- `get_engine_doc_page`
+- `answer_engine_question`
+- `get_index_stats`
+
+The generic tools take `engine`, `version`, and optional `docset`.
+
+Examples:
+
+- Unity:
+  `search_api_reference(query="Transform.Rotate", engine="unity")`
+- Unreal C++:
+  `search_api_reference(query="UCableComponent::SetAttachEndTo", engine="unreal", version="4.26", docset="cpp-api")`
+- Unreal Blueprint:
+  `get_engine_symbol_reference(symbol="Cast To Actor", engine="unreal", version="4.26", docset="blueprint-api")`
+
+Backwards-compatible Unity wrappers still exist:
+
+- `search_unity_api`
+- `search_unity_guides`
+- `get_unity_symbol_reference`
+- `get_unity_doc_page`
+- `answer_unity_question`
+- `get_unity_index_stats`
+
+## Parser Coverage
+
+Unity parser extracts:
+
+- ScriptReference symbols
+- Manual/guide pages
+- Title, symbol/class, namespace, member type, signature, parameters, returns, remarks, summary
+
+Unreal C++ parser extracts:
+
+- Class/module/member pages
+- QuickStart/guide pages
+- Module, header, include, source, hierarchy, signature, parameters, summary, remarks
+
+Unreal Blueprint parser extracts:
+
+- Node title
+- Node type/signature
+- Inputs and outputs
+- Topic path/category
+
+## Notes
+
+- Searches are isolated to the selected docset databases, then merged at query time when you intentionally search across multiple docsets.
+- The common schema is shared, but parsers are engine-specific.
+- Not every field is populated for every engine; empty fields are expected where a doc format does not provide that concept.
+
+## Verification
+
+Current automated coverage:
 
 ```bash
-# Build the Docker image
-make build
-
-# Run the container (detached)
-make run
-
-# View logs
-make logs
-
-# Stop the container
-make stop
-
-# Restart (stop + run)
-make restart
+.venv/bin/pytest -q
 ```
 
-The `.env` file controls the exposed port:
-
-```
-UNITY_MCP_PORT=8080
-```
-
-## Connect to an MCP Client
-
-### Via URL (HTTP transport)
-
-Start the server first, then add to your MCP client configuration (e.g., Claude Desktop, Cursor, etc.):
-
-```json
-{
-  "mcpServers": {
-    "unity-mcp": {
-      "url": "http://localhost:8080/mcp"
-    }
-  }
-}
-```
-
-### Via Command (stdio transport)
-
-```json
-{
-  "mcpServers": {
-    "unity-mcp": {
-      "command": "uv",
-      "args": [
-        "--directory",
-        "/absolute/path/to/unity-mcp",
-        "run",
-        "python",
-        "scripts/run_server.py",
-        "--stdio"
-      ]
-    }
-  }
-}
-```
-
-## Available Tools
-
-### `search_unity_docs`
-
-Full-text search over indexed Unity documentation.
-
-```
-Input:
-  query (string, required) - Search query
-  limit (int, optional) - Max results, default 10
-
-Returns: Top matching pages with title, path, snippet, and relevance score.
-```
-
-Example: Search for "transform rotate" to find Transform.Rotate and related pages.
-
-### `get_unity_doc_page`
-
-Retrieve a specific documentation page by path.
-
-```
-Input:
-  path_or_key (string, required) - Relative path like "en/ScriptReference/Transform.html"
-
-Returns: Structured fields (title, summary, signature, parameters, content excerpt).
-```
-
-### `get_unity_symbol_reference`
-
-Look up a Unity symbol (class, method, property, enum) by name.
-
-```
-Input:
-  symbol (string, required) - Symbol name like "Transform.Rotate" or "Rigidbody"
-
-Returns: Best match with signature, summary, parameters, returns, and remarks.
-         If no match found, returns a clear "not found" message.
-```
-
-### `get_unity_index_stats`
-
-Get statistics about the indexed documentation.
-
-```
-Returns: Total pages, script reference count, manual count, unique classes.
-```
-
-## Example Tool Usage
-
-**Search**: "How do I rotate a transform?"
-```
-search_unity_docs(query="Transform rotate")
-```
-
-**Symbol lookup**: "What is Rigidbody?"
-```
-get_unity_symbol_reference(symbol="Rigidbody")
-```
-
-**Exact page**: "Show me the Transform.Rotate docs"
-```
-get_unity_doc_page(path_or_key="en/ScriptReference/Transform.Rotate.html")
-```
-
-## Architecture
-
-- **Parser** (`parser.py`): Uses BeautifulSoup4 + lxml to extract structured data from Unity HTML docs. Handles both Script Reference pages (API docs with signatures, parameters) and Manual pages (conceptual guides). Degrades gracefully on non-standard pages.
-- **Database** (`db.py`): SQLite with FTS5 virtual table synced via triggers. WAL mode for concurrent reads during indexing. Upsert-by-path to avoid duplicates.
-- **Search** (`search.py`): Two-tier search — exact symbol/title/class match (boosted), then FTS5 BM25 ranking. Symbol lookup tries multiple strategies (exact name -> title -> suffix match -> class -> FTS).
-- **Server** (`server.py`): Official Python MCP SDK (FastMCP). Supports both streamable HTTP and stdio transports. Six tools with structured responses.
-
-## Limitations
-
-- Only indexes HTML files; PDFs or other formats are not supported
-- Symbol extraction relies on HTML patterns and may miss some edge cases
-- No semantic/vector search — purely text-based FTS5
-- The database must be rebuilt when documentation is updated
-- Signatures are extracted as-is from the HTML; complex generic signatures may not parse perfectly
-
-## Future Improvements
-
-- Incremental indexing (only re-parse changed files)
-- Semantic search via local embeddings
-- Better namespace extraction
-- Enum value indexing
-- Type hierarchy tracking (inheritance chains)
-- Cross-reference linking between Script Reference and Manual
+At the time of the latest local run, all tests passed.
