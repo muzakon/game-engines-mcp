@@ -15,6 +15,7 @@ The tool surface mirrors the two-index architecture:
 from __future__ import annotations
 
 import logging
+import os
 import sys
 
 from mcp.server.fastmcp import FastMCP
@@ -172,8 +173,8 @@ def main() -> None:
         transport = "stdio"
 
     if transport == "streamable-http":
-        host = "0.0.0.0"
-        port = 8080
+        host = os.environ.get("UNITY_MCP_HOST", "0.0.0.0")
+        port = int(os.environ.get("UNITY_MCP_PORT", "8080"))
         for arg in sys.argv:
             if arg.startswith("--host="):
                 host = arg.split("=", 1)[1]

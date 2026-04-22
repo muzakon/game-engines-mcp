@@ -64,16 +64,22 @@ uv run python scripts/build_index.py --no-rebuild
 
 ### HTTP Transport (default)
 
-Starts a streamable HTTP server on `http://0.0.0.0:8080/mcp`:
+Starts a streamable HTTP server on `http://0.0.0.0:<PORT>/mcp` (default port `8080`):
 
 ```bash
 uv run python scripts/run_server.py
 ```
 
-Custom host and port:
+Custom host and port via CLI flags:
 
 ```bash
 uv run python scripts/run_server.py --host=127.0.0.1 --port=3000
+```
+
+Or via environment variables:
+
+```bash
+UNITY_MCP_HOST=127.0.0.1 UNITY_MCP_PORT=3000 uv run python scripts/run_server.py
 ```
 
 ### Stdio Transport
@@ -82,6 +88,33 @@ For clients that spawn the server as a child process:
 
 ```bash
 uv run python scripts/run_server.py --stdio
+```
+
+## Docker
+
+A `Makefile` is provided for building and running with Docker. Port is read from the `.env` file.
+
+```bash
+# Build the Docker image
+make build
+
+# Run the container (detached)
+make run
+
+# View logs
+make logs
+
+# Stop the container
+make stop
+
+# Restart (stop + run)
+make restart
+```
+
+The `.env` file controls the exposed port:
+
+```
+UNITY_MCP_PORT=8080
 ```
 
 ## Connect to an MCP Client
