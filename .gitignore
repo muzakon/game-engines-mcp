@@ -5,3 +5,5 @@ __pycache__
 Documentation/*
 CLAUDE.md
 *.db
+*.db-wal
+*.db-shm

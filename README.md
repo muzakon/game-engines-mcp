@@ -5,7 +5,7 @@ A local MCP (Model Context Protocol) server that indexes offline Unity documenta
 ## How It Works
 
 1. **Build step**: Recursively scans `Documentation/` for HTML files, parses structured data from each page (title, symbol, class, namespace, signature, parameters, summary, etc.), and stores everything in a local SQLite database with an FTS5 virtual table for fast text search.
-2. **Server step**: Runs a stdio-based MCP server that exposes tools for searching docs, retrieving pages, and looking up symbols by name.
+2. **Server step**: Runs an MCP server (HTTP or stdio transport) that exposes tools for searching docs, retrieving pages, and looking up symbols by name.
 
 ## Project Structure
 
@@ -62,15 +62,45 @@ uv run python scripts/build_index.py --no-rebuild
 
 ## Run the MCP Server
 
+### HTTP Transport (default)
+
+Starts a streamable HTTP server on `http://0.0.0.0:8080/mcp`:
+
 ```bash
 uv run python scripts/run_server.py
 ```
 
-The server communicates over stdio using the MCP protocol.
+Custom host and port:
+
+```bash
+uv run python scripts/run_server.py --host=127.0.0.1 --port=3000
+```
+
+### Stdio Transport
+
+For clients that spawn the server as a child process:
+
+```bash
+uv run python scripts/run_server.py --stdio
+```
 
 ## Connect to an MCP Client
 
-Add this to your MCP client configuration (e.g., Claude Desktop, Cursor, etc.):
+### Via URL (HTTP transport)
+
+Start the server first, then add to your MCP client configuration (e.g., Claude Desktop, Cursor, etc.):
+
+```json
+{
+  "mcpServers": {
+    "unity-mcp": {
+      "url": "http://localhost:8080/mcp"
+    }
+  }
+}
+```
+
+### Via Command (stdio transport)
 
 ```json
 {
@@ -82,25 +112,8 @@ Add this to your MCP client configuration (e.g., Claude Desktop, Cursor, etc.):
         "/absolute/path/to/unity-mcp",
         "run",
         "python",
-        "scripts/run_server.py"
-      ]
-    }
-  }
-}
-```
-
-Or if you've installed the package:
-
-```json
-{
-  "mcpServers": {
-    "unity-mcp": {
-      "command": "uv",
-      "args": [
-        "--directory",
-        "/absolute/path/to/unity-mcp",
-        "run",
-        "unity-mcp"
+        "scripts/run_server.py",
+        "--stdio"
       ]
     }
   }
@@ -176,7 +189,7 @@ get_unity_doc_page(path_or_key="en/ScriptReference/Transform.Rotate.html")
 - **Parser** (`parser.py`): Uses BeautifulSoup4 + lxml to extract structured data from Unity HTML docs. Handles both Script Reference pages (API docs with signatures, parameters) and Manual pages (conceptual guides). Degrades gracefully on non-standard pages.
 - **Database** (`db.py`): SQLite with FTS5 virtual table synced via triggers. WAL mode for concurrent reads during indexing. Upsert-by-path to avoid duplicates.
 - **Search** (`search.py`): Two-tier search — exact symbol/title/class match (boosted), then FTS5 BM25 ranking. Symbol lookup tries multiple strategies (exact name -> title -> suffix match -> class -> FTS).
-- **Server** (`server.py`): Official Python MCP SDK, stdio transport. Four tools with structured responses.
+- **Server** (`server.py`): Official Python MCP SDK (FastMCP). Supports both streamable HTTP and stdio transports. Six tools with structured responses.
 
 ## Limitations
 
