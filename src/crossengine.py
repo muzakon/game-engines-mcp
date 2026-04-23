@@ -12,10 +12,9 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 from .db import get_connection
-from .docsets import DocsetSpec, select_docsets
+from .docsets import select_docsets
 from .search import IndexNotReadyError
 
 logger = logging.getLogger(__name__)
@@ -134,6 +133,7 @@ _MEMBER_TYPE_EQUIV: dict[str, list[str]] = {
 # Translation API
 # ---------------------------------------------------------------------------
 
+
 def translate_symbol(
     symbol: str,
     source_engine: str,
@@ -158,7 +158,9 @@ def translate_symbol(
     source_info = _lookup_source_symbol(symbol, source_engine)
 
     # Step 2: Try concept-map translation
-    concept_hits = _translate_via_concepts(symbol, source_info, source_engine, target_engine)
+    concept_hits = _translate_via_concepts(
+        symbol, source_info, source_engine, target_engine
+    )
     for hit in concept_hits:
         key = hit.target_symbol.lower()
         if key not in seen_symbols:
@@ -166,7 +168,9 @@ def translate_symbol(
             results.append(hit)
 
     # Step 3: Try name-based fuzzy matching in target engine
-    name_hits = _translate_via_name(symbol, source_info, source_engine, target_engine, limit=limit)
+    name_hits = _translate_via_name(
+        symbol, source_info, source_engine, target_engine, limit=limit
+    )
     for hit in name_hits:
         key = hit.target_symbol.lower()
         if key not in seen_symbols:
@@ -202,9 +206,15 @@ def compare_symbol_across_engines(
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+
 def _detect_symbol_engine(symbol: str) -> str | None:
     """Heuristic to guess which engine a symbol belongs to."""
-    if "::" in symbol or symbol.startswith("U") or symbol.startswith("A") or symbol.startswith("F"):
+    if (
+        "::" in symbol
+        or symbol.startswith("U")
+        or symbol.startswith("A")
+        or symbol.startswith("F")
+    ):
         if any(c == "::" for c in symbol) or symbol[0] in "UAF":
             return "unreal"
     if "." in symbol and not symbol.startswith("U"):
@@ -284,7 +294,9 @@ def _translate_via_concepts(
     for spec in indexed:
         conn = get_connection(spec.db_path, readonly=True)
         try:
-            placeholders = " OR ".join(["LOWER(symbol_name) LIKE ?"] * len(target_symbols))
+            placeholders = " OR ".join(
+                ["LOWER(symbol_name) LIKE ?"] * len(target_symbols)
+            )
             args = [f"%{kw}%" for kw in target_symbols]
             rows = conn.execute(
                 f"""
@@ -296,22 +308,30 @@ def _translate_via_concepts(
                 args,
             ).fetchall()
             for row in rows:
-                confidence = "high" if row["symbol_name"].lower() in target_symbols else "medium"
-                results.append(TranslationResult(
-                    source_engine=source_engine,
-                    source_symbol=symbol,
-                    source_title=source_info.get("title", symbol) if source_info else symbol,
-                    source_member_type=source_info.get("member_type", "") if source_info else "",
-                    target_engine=target_engine,
-                    target_symbol=row["symbol_name"],
-                    target_title=row["title"],
-                    target_member_type=row["member_type"] or "",
-                    target_summary=row["summary"] or "",
-                    target_relative_path=row["relative_path"],
-                    target_docset=spec.docset,
-                    target_docset_label=spec.label,
-                    confidence=confidence,
-                ))
+                confidence = (
+                    "high" if row["symbol_name"].lower() in target_symbols else "medium"
+                )
+                results.append(
+                    TranslationResult(
+                        source_engine=source_engine,
+                        source_symbol=symbol,
+                        source_title=source_info.get("title", symbol)
+                        if source_info
+                        else symbol,
+                        source_member_type=source_info.get("member_type", "")
+                        if source_info
+                        else "",
+                        target_engine=target_engine,
+                        target_symbol=row["symbol_name"],
+                        target_title=row["title"],
+                        target_member_type=row["member_type"] or "",
+                        target_summary=row["summary"] or "",
+                        target_relative_path=row["relative_path"],
+                        target_docset=spec.docset,
+                        target_docset_label=spec.label,
+                        confidence=confidence,
+                    )
+                )
         finally:
             conn.close()
 
@@ -359,21 +379,27 @@ def _translate_via_name(
                 (f"%{base_name}%", f"%{base_name}%", base_name, limit),
             ).fetchall()
             for row in rows:
-                results.append(TranslationResult(
-                    source_engine=source_engine,
-                    source_symbol=symbol,
-                    source_title=source_info.get("title", symbol) if source_info else symbol,
-                    source_member_type=source_info.get("member_type", "") if source_info else "",
-                    target_engine=target_engine,
-                    target_symbol=row["symbol_name"],
-                    target_title=row["title"],
-                    target_member_type=row["member_type"] or "",
-                    target_summary=row["summary"] or "",
-                    target_relative_path=row["relative_path"],
-                    target_docset=spec.docset,
-                    target_docset_label=spec.label,
-                    confidence="low",
-                ))
+                results.append(
+                    TranslationResult(
+                        source_engine=source_engine,
+                        source_symbol=symbol,
+                        source_title=source_info.get("title", symbol)
+                        if source_info
+                        else symbol,
+                        source_member_type=source_info.get("member_type", "")
+                        if source_info
+                        else "",
+                        target_engine=target_engine,
+                        target_symbol=row["symbol_name"],
+                        target_title=row["title"],
+                        target_member_type=row["member_type"] or "",
+                        target_summary=row["summary"] or "",
+                        target_relative_path=row["relative_path"],
+                        target_docset=spec.docset,
+                        target_docset_label=spec.label,
+                        confidence="low",
+                    )
+                )
         finally:
             conn.close()
 

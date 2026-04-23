@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.docsets import docset_status_rows, get_docset, select_docsets
-from src.indexer import Indexer, build_index, build_indexes
+from src.indexer import build_index, build_indexes
 from src.utils import format_docset_status
 
 
@@ -19,14 +19,36 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Build documentation indexes")
     parser.add_argument("--engine", help="Engine name, e.g. unity or unreal")
     parser.add_argument("--version", help="Engine version, e.g. 6000.4.3f1 or 4.26")
-    parser.add_argument("--docset", help="Docset name, e.g. reference, cpp-api, blueprint-api")
-    parser.add_argument("--all", action="store_true", help="Build all matching registered docsets")
-    parser.add_argument("--list-docsets", action="store_true", help="List registered docsets and exit")
-    parser.add_argument("--docs-root", type=Path, help="Override docs root for a single selected docset")
-    parser.add_argument("--db-path", type=Path, help="Override database path for a single selected docset")
-    parser.add_argument("--no-rebuild", action="store_true", help="Do not drop existing data; only insert/update")
-    parser.add_argument("--vectors", action="store_true", help="Also build LanceDB vector index for semantic search")
-    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
+    parser.add_argument(
+        "--docset", help="Docset name, e.g. reference, cpp-api, blueprint-api"
+    )
+    parser.add_argument(
+        "--all", action="store_true", help="Build all matching registered docsets"
+    )
+    parser.add_argument(
+        "--list-docsets", action="store_true", help="List registered docsets and exit"
+    )
+    parser.add_argument(
+        "--docs-root", type=Path, help="Override docs root for a single selected docset"
+    )
+    parser.add_argument(
+        "--db-path",
+        type=Path,
+        help="Override database path for a single selected docset",
+    )
+    parser.add_argument(
+        "--no-rebuild",
+        action="store_true",
+        help="Do not drop existing data; only insert/update",
+    )
+    parser.add_argument(
+        "--vectors",
+        action="store_true",
+        help="Also build LanceDB vector index for semantic search",
+    )
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Enable verbose logging"
+    )
     args = parser.parse_args()
 
     logging.basicConfig(

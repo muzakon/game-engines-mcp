@@ -15,6 +15,7 @@ Schema overview
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from pathlib import Path
 
@@ -177,6 +178,7 @@ END;
 # Database class
 # ---------------------------------------------------------------------------
 
+
 class Database:
     """Manage a single docset SQLite database.
 
@@ -260,6 +262,7 @@ class Database:
 # ---------------------------------------------------------------------------
 # Low-level helpers (used by Database class and legacy callers)
 # ---------------------------------------------------------------------------
+
 
 def get_connection(db_path: Path, readonly: bool = False) -> sqlite3.Connection:
     """Open a SQLite connection with WAL mode and row factory enabled."""

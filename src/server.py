@@ -177,17 +177,25 @@ def search_engine_docs(
 
     try:
         if mode == "keyword":
-            bundle = answer_question(query, engine=engine, version=version, docset=docset)
+            bundle = answer_question(
+                query, engine=engine, version=version, docset=docset
+            )
             return format_combined_results(bundle)
 
         if mode == "semantic":
             from .vecsearch import vector_search
-            results = vector_search(query, limit=limit, engine=engine, version=version, docset=docset)
+
+            results = vector_search(
+                query, limit=limit, engine=engine, version=version, docset=docset
+            )
             return format_search_results(results, header=f"Semantic search: '{query}'")
 
         # hybrid (default)
         from .vecsearch import hybrid_search
-        results = hybrid_search(query, limit=limit, engine=engine, version=version, docset=docset)
+
+        results = hybrid_search(
+            query, limit=limit, engine=engine, version=version, docset=docset
+        )
         return format_hybrid_results(results, query)
     except (ValueError, IndexNotReadyError) as exc:
         return _error_message(exc)
@@ -195,7 +203,9 @@ def search_engine_docs(
         logger.warning("Search failed: %s", exc)
         # Fall back to keyword-only
         try:
-            bundle = answer_question(query, engine=engine, version=version, docset=docset)
+            bundle = answer_question(
+                query, engine=engine, version=version, docset=docset
+            )
             return format_combined_results(bundle)
         except (ValueError, IndexNotReadyError) as exc2:
             return _error_message(exc2)
@@ -222,7 +232,9 @@ def get_engine_symbol_reference(
     """
 
     try:
-        ref = get_symbol_reference(symbol, engine=engine, version=version, docset=docset)
+        ref = get_symbol_reference(
+            symbol, engine=engine, version=version, docset=docset
+        )
     except (ValueError, IndexNotReadyError) as exc:
         return _error_message(exc)
     if ref:
@@ -250,7 +262,9 @@ def get_engine_doc_page(
     """
 
     try:
-        payload = get_doc_page(path_or_key, engine=engine, version=version, docset=docset)
+        payload = get_doc_page(
+            path_or_key, engine=engine, version=version, docset=docset
+        )
     except (ValueError, IndexNotReadyError) as exc:
         return _error_message(exc)
     if payload:
@@ -313,20 +327,25 @@ def get_index_stats(
             f"  - {row['label']} ({row['key']}): api={row['api_pages']}, guide={row['guide_pages']}"
         )
     lines += ["", "API member-type breakdown:"]
-    for key, value in sorted(stats["api_member_breakdown"].items(), key=lambda item: (-item[1], item[0])):
+    for key, value in sorted(
+        stats["api_member_breakdown"].items(), key=lambda item: (-item[1], item[0])
+    ):
         lines.append(f"  - {key or '(unknown)'}: {value}")
     lines += ["", "Guide-type breakdown:"]
-    for key, value in sorted(stats["guide_breakdown"].items(), key=lambda item: (-item[1], item[0])):
+    for key, value in sorted(
+        stats["guide_breakdown"].items(), key=lambda item: (-item[1], item[0])
+    ):
         lines.append(f"  - {key or '(unknown)'}: {value}")
 
     # Check vector index status
     try:
         from .vecsearch import _record_exists, _vec_db_path
-        from pathlib import Path
+
         vec_dir = _vec_db_path()
         if vec_dir.exists():
             lines += ["", "Vector index:"]
             from .docsets import get_registered_docsets
+
             for spec in get_registered_docsets():
                 status = "yes" if _record_exists(spec) else "no"
                 lines.append(f"  - {spec.key}: {status}")
@@ -361,6 +380,7 @@ def browse_class_hierarchy(
 
     try:
         from .navigation import browse_class
+
         info = browse_class(class_name, engine=engine, version=version, docset=docset)
         if info:
             return format_class_info(info)
@@ -390,7 +410,14 @@ def list_class_members(
 
     try:
         from .navigation import list_class_members as _list
-        members = _list(class_name, member_type=member_type, engine=engine, version=version, docset=docset)
+
+        members = _list(
+            class_name,
+            member_type=member_type,
+            engine=engine,
+            version=version,
+            docset=docset,
+        )
         return format_member_list(members)
     except (ValueError, IndexNotReadyError) as exc:
         return _error_message(exc)
@@ -413,7 +440,10 @@ def browse_inheritance_chain(
 
     try:
         from .navigation import browse_inheritance
-        chain = browse_inheritance(class_name, engine=engine, version=version, docset=docset)
+
+        chain = browse_inheritance(
+            class_name, engine=engine, version=version, docset=docset
+        )
         return format_inheritance_chain(chain)
     except (ValueError, IndexNotReadyError) as exc:
         return _error_message(exc)
@@ -437,7 +467,10 @@ def list_engine_classes(
 
     try:
         from .navigation import list_classes
-        results = list_classes(engine=engine, version=version, docset=docset, prefix=prefix, limit=limit)
+
+        results = list_classes(
+            engine=engine, version=version, docset=docset, prefix=prefix, limit=limit
+        )
         return format_class_list(results)
     except (ValueError, IndexNotReadyError) as exc:
         return _error_message(exc)
@@ -459,6 +492,7 @@ def browse_module(
 
     try:
         from .navigation import browse_module as _browse
+
         info = _browse(module_name, engine=engine, version=version, docset=docset)
         if info:
             return format_module_info(info)
@@ -483,6 +517,7 @@ def get_related_symbols(
 
     try:
         from .navigation import get_related_symbols as _get
+
         results = _get(symbol, engine=engine, version=version, docset=docset)
         return format_related_symbols(results)
     except (ValueError, IndexNotReadyError) as exc:
@@ -513,6 +548,7 @@ def translate_symbol(
 
     try:
         from .crossengine import translate_symbol as _translate
+
         results = _translate(symbol, source_engine, target_engine)
         return format_translation_results(results, symbol, source_engine, target_engine)
     except (ValueError, IndexNotReadyError) as exc:
@@ -535,6 +571,7 @@ def compare_across_engines(
 
     try:
         from .crossengine import compare_symbol_across_engines
+
         results = compare_symbol_across_engines(symbol)
         if not results:
             return f"No cross-engine equivalents found for '{symbol}'."
@@ -545,8 +582,12 @@ def compare_across_engines(
             if not hits:
                 parts.append("  No equivalent found.")
             for hit in hits:
-                conf = {"high": "HIGH", "medium": "MED", "low": "LOW"}.get(hit.confidence, hit.confidence)
-                parts.append(f"  [{conf}] {hit.target_symbol} — {hit.target_summary or hit.target_title}")
+                conf = {"high": "HIGH", "medium": "MED", "low": "LOW"}.get(
+                    hit.confidence, hit.confidence
+                )
+                parts.append(
+                    f"  [{conf}] {hit.target_symbol} — {hit.target_summary or hit.target_title}"
+                )
         return "\n".join(parts)
     except (ValueError, IndexNotReadyError) as exc:
         return _error_message(exc)
@@ -604,7 +645,9 @@ def build_vector_index(
 
 
 @mcp.tool()
-def search_unity_api(query: str, limit: int = 10, member_type: str | None = None) -> str:
+def search_unity_api(
+    query: str, limit: int = 10, member_type: str | None = None
+) -> str:
     """Compatibility wrapper around search_api_reference(engine='unity')."""
 
     return search_api_reference(
@@ -616,7 +659,9 @@ def search_unity_api(query: str, limit: int = 10, member_type: str | None = None
 
 
 @mcp.tool()
-def search_unity_guides(query: str, limit: int = 10, guide_type: str | None = None) -> str:
+def search_unity_guides(
+    query: str, limit: int = 10, guide_type: str | None = None
+) -> str:
     """Compatibility wrapper around search_engine_guides(engine='unity')."""
 
     return search_engine_guides(
@@ -670,6 +715,7 @@ def main() -> None:
     # Auto-download missing databases from GitHub Releases
     try:
         from .downloader import ensure_databases
+
         ensure_databases()
     except FileNotFoundError:
         logger.warning("No config.yaml found — skipping auto-download")

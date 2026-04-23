@@ -22,17 +22,12 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
 
-import numpy as np
-from numpy.typing import NDArray
 
 from .config import (
-    DATA_DIR,
     DEFAULT_SEARCH_LIMIT,
     MAX_SEARCH_LIMIT,
     VECTOR_DB_DIR,
-    VECTOR_DIM,
 )
 from .docsets import DocsetSpec, select_docsets
 from .embedding import EmbeddingModel, get_embedding_model
@@ -52,24 +47,44 @@ _RRF_K = 60
 # Row mappers (same logic as search.py but kept local to avoid coupling)
 # ---------------------------------------------------------------------------
 
-def _api_row_to_result(row, snippet: str, score: float, spec: DocsetSpec) -> SearchResult:
+
+def _api_row_to_result(
+    row, snippet: str, score: float, spec: DocsetSpec
+) -> SearchResult:
     return SearchResult(
-        id=row["id"], category="api", title=row["title"],
-        relative_path=row["relative_path"], snippet=(snippet or "")[:500],
-        score=score, engine=spec.engine, version=spec.version,
-        docset=spec.docset, docset_label=spec.label,
-        symbol_name=row["symbol_name"] or "", class_name=row["class_name"] or "",
-        namespace=row["namespace"] or "", member_type=row["member_type"] or "",
-        module_name=row["module_name"] or "", topic_path=row["topic_path"] or "",
+        id=row["id"],
+        category="api",
+        title=row["title"],
+        relative_path=row["relative_path"],
+        snippet=(snippet or "")[:500],
+        score=score,
+        engine=spec.engine,
+        version=spec.version,
+        docset=spec.docset,
+        docset_label=spec.label,
+        symbol_name=row["symbol_name"] or "",
+        class_name=row["class_name"] or "",
+        namespace=row["namespace"] or "",
+        member_type=row["member_type"] or "",
+        module_name=row["module_name"] or "",
+        topic_path=row["topic_path"] or "",
     )
 
 
-def _guide_row_to_result(row, snippet: str, score: float, spec: DocsetSpec) -> SearchResult:
+def _guide_row_to_result(
+    row, snippet: str, score: float, spec: DocsetSpec
+) -> SearchResult:
     return SearchResult(
-        id=row["id"], category="guide", title=row["title"],
-        relative_path=row["relative_path"], snippet=(snippet or "")[:500],
-        score=score, engine=spec.engine, version=spec.version,
-        docset=spec.docset, docset_label=spec.label,
+        id=row["id"],
+        category="guide",
+        title=row["title"],
+        relative_path=row["relative_path"],
+        snippet=(snippet or "")[:500],
+        score=score,
+        engine=spec.engine,
+        version=spec.version,
+        docset=spec.docset,
+        docset_label=spec.label,
         guide_type=row["guide_type"] if "guide_type" in row.keys() else "",
         topic_path=row["topic_path"] if "topic_path" in row.keys() else "",
     )
@@ -78,6 +93,7 @@ def _guide_row_to_result(row, snippet: str, score: float, spec: DocsetSpec) -> S
 # ---------------------------------------------------------------------------
 # LanceDB helpers
 # ---------------------------------------------------------------------------
+
 
 def _vec_db_path() -> Path:
     VECTOR_DB_DIR.mkdir(parents=True, exist_ok=True)
@@ -117,6 +133,7 @@ def _record_exists(spec: DocsetSpec) -> bool:
 # Vector index building
 # ---------------------------------------------------------------------------
 
+
 def build_vector_index(
     spec: DocsetSpec,
     model: EmbeddingModel | None = None,
@@ -152,25 +169,35 @@ def build_vector_index(
         api_texts = []
         api_ids = []
         for row in api_rows:
-            text = " ".join(filter(None, [
-                row["symbol_name"], row["title"], row["class_name"],
-                row["summary"], row["content_text"][:500],
-            ]))
+            text = " ".join(
+                filter(
+                    None,
+                    [
+                        row["symbol_name"],
+                        row["title"],
+                        row["class_name"],
+                        row["summary"],
+                        row["content_text"][:500],
+                    ],
+                )
+            )
             api_texts.append(text)
             api_ids.append(row["id"])
 
         api_embedded = 0
         for i in range(0, len(api_texts), batch_size):
-            batch_texts = api_texts[i:i + batch_size]
-            batch_ids = api_ids[i:i + batch_size]
+            batch_texts = api_texts[i : i + batch_size]
+            batch_ids = api_ids[i : i + batch_size]
             embeddings = model.encode(batch_texts)
             for j, (rid, emb) in enumerate(zip(batch_ids, embeddings)):
-                records.append({
-                    "rowid": rid,
-                    "category": "api",
-                    "text": batch_texts[j][:200],
-                    "vector": emb.tolist(),
-                })
+                records.append(
+                    {
+                        "rowid": rid,
+                        "category": "api",
+                        "text": batch_texts[j][:200],
+                        "vector": emb.tolist(),
+                    }
+                )
             api_embedded += len(batch_texts)
 
         # Embed guide records
@@ -180,24 +207,33 @@ def build_vector_index(
         guide_texts = []
         guide_ids = []
         for row in guide_rows:
-            text = " ".join(filter(None, [
-                row["title"], row["summary"], row["content_text"][:500],
-            ]))
+            text = " ".join(
+                filter(
+                    None,
+                    [
+                        row["title"],
+                        row["summary"],
+                        row["content_text"][:500],
+                    ],
+                )
+            )
             guide_texts.append(text)
             guide_ids.append(row["id"])
 
         guide_embedded = 0
         for i in range(0, len(guide_texts), batch_size):
-            batch_texts = guide_texts[i:i + batch_size]
-            batch_ids = guide_ids[i:i + batch_size]
+            batch_texts = guide_texts[i : i + batch_size]
+            batch_ids = guide_ids[i : i + batch_size]
             embeddings = model.encode(batch_texts)
             for j, (rid, emb) in enumerate(zip(batch_ids, embeddings)):
-                records.append({
-                    "rowid": rid,
-                    "category": "guide",
-                    "text": batch_texts[j][:200],
-                    "vector": emb.tolist(),
-                })
+                records.append(
+                    {
+                        "rowid": rid,
+                        "category": "guide",
+                        "text": batch_texts[j][:200],
+                        "vector": emb.tolist(),
+                    }
+                )
             guide_embedded += len(batch_texts)
 
         if records:
@@ -222,6 +258,7 @@ def build_vector_index(
 # ---------------------------------------------------------------------------
 # Vector search
 # ---------------------------------------------------------------------------
+
 
 def vector_search_single(
     query: str,
@@ -280,18 +317,27 @@ def vector_search(
                     "SELECT * FROM api_records WHERE id = ?", (rowid,)
                 ).fetchone()
                 if row:
-                    results.append(_api_row_to_result(
-                        row, row["summary"] or row["symbol_name"] or row["title"],
-                        distance, spec,
-                    ))
+                    results.append(
+                        _api_row_to_result(
+                            row,
+                            row["summary"] or row["symbol_name"] or row["title"],
+                            distance,
+                            spec,
+                        )
+                    )
                     continue
                 row = conn.execute(
                     "SELECT * FROM guide_records WHERE id = ?", (rowid,)
                 ).fetchone()
                 if row:
-                    results.append(_guide_row_to_result(
-                        row, row["summary"] or row["title"], distance, spec,
-                    ))
+                    results.append(
+                        _guide_row_to_result(
+                            row,
+                            row["summary"] or row["title"],
+                            distance,
+                            spec,
+                        )
+                    )
         finally:
             conn.close()
 
@@ -302,6 +348,7 @@ def vector_search(
 # ---------------------------------------------------------------------------
 # Hybrid search with Reciprocal Rank Fusion
 # ---------------------------------------------------------------------------
+
 
 def _rrf_merge(
     keyword_results: list[SearchResult],
@@ -347,17 +394,30 @@ def hybrid_search(
     fetch_limit = limit * 3
 
     from .search import DocSearcher
+
     searcher = DocSearcher()
 
     keyword_results: list[SearchResult] = []
     try:
         if category == "guide" or category is None:
             keyword_results.extend(
-                searcher.search_guides(query, limit=fetch_limit, engine=engine, version=version, docset=docset)
+                searcher.search_guides(
+                    query,
+                    limit=fetch_limit,
+                    engine=engine,
+                    version=version,
+                    docset=docset,
+                )
             )
         if category == "api" or category is None:
             keyword_results.extend(
-                searcher.search_api(query, limit=fetch_limit, engine=engine, version=version, docset=docset)
+                searcher.search_api(
+                    query,
+                    limit=fetch_limit,
+                    engine=engine,
+                    version=version,
+                    docset=docset,
+                )
             )
     except (ValueError, IndexNotReadyError):
         pass
@@ -365,8 +425,12 @@ def hybrid_search(
     vector_results: list[SearchResult] = []
     try:
         vector_results = vector_search(
-            query, limit=fetch_limit, engine=engine, version=version,
-            docset=docset, category=category,
+            query,
+            limit=fetch_limit,
+            engine=engine,
+            version=version,
+            docset=docset,
+            category=category,
         )
     except Exception as exc:
         logger.warning("Vector search failed, using keyword-only: %s", exc)
@@ -385,6 +449,7 @@ def hybrid_search(
 # ---------------------------------------------------------------------------
 # Spec resolution (tolerant of unregistered docsets)
 # ---------------------------------------------------------------------------
+
 
 def _resolve_specs(
     *,

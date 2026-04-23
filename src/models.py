@@ -13,13 +13,14 @@ Three groups of models live here:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Optional
 
 
 # ---------------------------------------------------------------------------
 # Index records (one per row in their respective tables)
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class ApiRecord:
@@ -73,6 +74,7 @@ class GuideRecord:
 # Search result containers
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class SearchResult:
     """A single search hit returned by the search helpers.
@@ -104,6 +106,7 @@ class SearchResult:
 # ---------------------------------------------------------------------------
 # Reference models (enriched row + engine metadata)
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class SymbolReference:

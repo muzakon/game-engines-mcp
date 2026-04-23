@@ -32,7 +32,9 @@ def _curl(*args: str) -> tuple[int, str, str]:
     # Last line is the HTTP status code injected by -w
     parts = output.rsplit("\n", 1)
     body = parts[0]
-    status_code = int(parts[1].strip()) if len(parts) == 2 and parts[1].strip().isdigit() else 0
+    status_code = (
+        int(parts[1].strip()) if len(parts) == 2 and parts[1].strip().isdigit() else 0
+    )
     return status_code, body, r.stderr
 
 
@@ -40,7 +42,9 @@ def _github_token() -> str:
     token = os.environ.get("GITHUB_TOKEN", "")
     if not token:
         print("ERROR: GITHUB_TOKEN environment variable is not set.")
-        print("       Generate one at https://github.com/settings/tokens with 'repo' scope.")
+        print(
+            "       Generate one at https://github.com/settings/tokens with 'repo' scope."
+        )
         sys.exit(1)
     return token
 
@@ -63,8 +67,10 @@ def _create_or_get_release(
     """Return the release ID, creating the release if it doesn't exist."""
 
     headers = [
-        "-H", f"Authorization: token {token}",
-        "-H", "Accept: application/vnd.github+json",
+        "-H",
+        f"Authorization: token {token}",
+        "-H",
+        "Accept: application/vnd.github+json",
     ]
 
     # Try to fetch existing release
@@ -77,13 +83,15 @@ def _create_or_get_release(
         return str(release_id)
 
     # Create a new release
-    payload = json.dumps({
-        "tag_name": tag,
-        "name": tag,
-        "body": body,
-        "draft": False,
-        "prerelease": False,
-    })
+    payload = json.dumps(
+        {
+            "tag_name": tag,
+            "name": tag,
+            "body": body,
+            "draft": False,
+            "prerelease": False,
+        }
+    )
     api = f"https://api.github.com/repos/{owner}/{repo}/releases"
     status, resp, _ = _curl(*headers, "-X", "POST", "-d", payload, api)
     if status != 201:
@@ -106,10 +114,14 @@ def _upload_asset(
         f"{release_id}/assets?name={asset_path.name}"
     )
     status, resp, _ = _curl(
-        "-H", f"Authorization: token {token}",
-        "-H", "Content-Type: application/gzip",
-        "-X", "POST",
-        "--data-binary", f"@{asset_path}",
+        "-H",
+        f"Authorization: token {token}",
+        "-H",
+        "Content-Type: application/gzip",
+        "-X",
+        "POST",
+        "--data-binary",
+        f"@{asset_path}",
         upload_url,
     )
     if status not in (200, 201):
@@ -142,7 +154,10 @@ def main() -> None:
 
             try:
                 release_id = _create_or_get_release(
-                    token, owner, repo, tag,
+                    token,
+                    owner,
+                    repo,
+                    tag,
                     body=f"Pre-built index for {entry.engine} {entry.version} {docset}",
                 )
                 _upload_asset(token, owner, repo, release_id, gz_path)

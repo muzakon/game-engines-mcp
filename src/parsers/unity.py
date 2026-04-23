@@ -81,7 +81,10 @@ def guide_type_for(relative_path: str, title: str) -> str:
 
     if _MANUAL_CLASS_PAGE_RE.match(Path(relative_path).stem or ""):
         return "reference"
-    if any(kw in path_lower for kw in ("tutorial", "gettingstarted", "getting-started", "quickstart")):
+    if any(
+        kw in path_lower
+        for kw in ("tutorial", "gettingstarted", "getting-started", "quickstart")
+    ):
         return "tutorial"
     if any(kw in title_lower for kw in ("getting started", "quick start", "tutorial")):
         return "tutorial"
@@ -103,7 +106,9 @@ def _extract_title(soup: BeautifulSoup) -> str:
     tag = soup.find("title")
     if tag:
         raw = tag.get_text()
-        cleaned = raw.replace("Unity - Scripting API:", "").replace("Unity - Manual:", "")
+        cleaned = raw.replace("Unity - Scripting API:", "").replace(
+            "Unity - Manual:", ""
+        )
         return _clean(cleaned)
     h1 = soup.find("h1")
     return _clean(h1.get_text()) if h1 else ""
@@ -144,7 +149,9 @@ def _extract_signatures(soup: BeautifulSoup) -> list[str]:
     return sigs
 
 
-def _extract_subsection_text(soup: BeautifulSoup, heading_keywords: tuple[str, ...]) -> str:
+def _extract_subsection_text(
+    soup: BeautifulSoup, heading_keywords: tuple[str, ...]
+) -> str:
     for subsection in soup.find_all("div", class_="subsection"):
         h3 = subsection.find("h3")
         if not h3:
@@ -177,18 +184,27 @@ def _extract_parameters(soup: BeautifulSoup) -> list[dict[str, str]]:
     return params
 
 
-def _infer_member_type(relative_path: str, title: str, signature: str, content: str) -> str:
+def _infer_member_type(
+    relative_path: str, title: str, signature: str, content: str
+) -> str:
     stem = Path(relative_path).stem
 
     if "-" in stem and not stem.startswith("-"):
         low = content[:800].lower()
-        if "event " in signature.lower() or "add_" in signature.lower() or "event" in stem.lower():
+        if (
+            "event " in signature.lower()
+            or "add_" in signature.lower()
+            or "event" in stem.lower()
+        ):
             return "event"
         if "readonly" in signature.lower() or "get;" in signature:
             return "property"
         if "{ get" in signature or "}" in signature or "get;" in signature:
             return "property"
-        if "public static readonly" in signature.lower() or "const " in signature.lower():
+        if (
+            "public static readonly" in signature.lower()
+            or "const " in signature.lower()
+        ):
             return "field"
         if "field" in low:
             return "field"
@@ -206,7 +222,11 @@ def _infer_member_type(relative_path: str, title: str, signature: str, content: 
     if "class in " in head:
         return "class"
 
-    if "." in stem and ("(" in signature or "void " in signature.lower() or "returns " in content.lower()):
+    if "." in stem and (
+        "(" in signature
+        or "void " in signature.lower()
+        or "returns " in content.lower()
+    ):
         return "method"
     if "." in title and signature:
         return "method"
@@ -234,7 +254,14 @@ def _extract_key_topics(soup: BeautifulSoup, limit: int = 20) -> list[str]:
         low = text.lower()
         if low in seen:
             continue
-        if low in {"description", "parameters", "returns", "remarks", "leave feedback", "success!"}:
+        if low in {
+            "description",
+            "parameters",
+            "returns",
+            "remarks",
+            "leave feedback",
+            "success!",
+        }:
             continue
         seen.add(low)
         topics.append(text)

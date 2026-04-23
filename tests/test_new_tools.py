@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import json
-import shutil
 
 import pytest
 
-from src.db import get_connection, init_db, upsert_api_record, upsert_guide_record
+from src.db import get_connection, init_db, upsert_api_record
 from src.docsets import clear_docset_cache, DocsetSpec
-from src.models import ApiRecord, GuideRecord
+from src.models import ApiRecord
 from src.embedding import get_embedding_model
 from src.vecsearch import build_vector_index, vector_search_single, _rrf_merge
 from src.navigation import (
@@ -48,20 +47,28 @@ def nav_indexes(tmp_path, monkeypatch):
 
     manifest_path = tmp_path / "docsets.json"
     manifest_path.write_text(
-        json.dumps([
-            {
-                "engine": unity_spec.engine, "version": unity_spec.version,
-                "docset": unity_spec.docset, "label": unity_spec.label,
-                "docs_root": str(unity_spec.docs_root), "db_path": str(unity_spec.db_path),
-                "parser_kind": unity_spec.parser_kind,
-            },
-            {
-                "engine": godot_spec.engine, "version": godot_spec.version,
-                "docset": godot_spec.docset, "label": godot_spec.label,
-                "docs_root": str(godot_spec.docs_root), "db_path": str(godot_spec.db_path),
-                "parser_kind": godot_spec.parser_kind,
-            },
-        ]),
+        json.dumps(
+            [
+                {
+                    "engine": unity_spec.engine,
+                    "version": unity_spec.version,
+                    "docset": unity_spec.docset,
+                    "label": unity_spec.label,
+                    "docs_root": str(unity_spec.docs_root),
+                    "db_path": str(unity_spec.db_path),
+                    "parser_kind": unity_spec.parser_kind,
+                },
+                {
+                    "engine": godot_spec.engine,
+                    "version": godot_spec.version,
+                    "docset": godot_spec.docset,
+                    "label": godot_spec.label,
+                    "docs_root": str(godot_spec.docs_root),
+                    "db_path": str(godot_spec.db_path),
+                    "parser_kind": godot_spec.parser_kind,
+                },
+            ]
+        ),
         encoding="utf-8",
     )
 
@@ -76,58 +83,97 @@ def nav_indexes(tmp_path, monkeypatch):
 
     # Unity records
     conn = get_connection(unity_spec.db_path)
-    upsert_api_record(conn, ApiRecord(
-        title="Transform", relative_path="Transform.html",
-        symbol_name="Transform", class_name="Transform",
-        member_type="class", namespace="UnityEngine",
-        summary="Position rotation and scale",
-        inheritance_json='["Transform", "Component", "Object"]',
-    ))
-    upsert_api_record(conn, ApiRecord(
-        title="Transform.Rotate", relative_path="Transform.Rotate.html",
-        symbol_name="Transform.Rotate", class_name="Transform",
-        member_type="method", namespace="UnityEngine",
-        summary="Rotates the transform",
-        signature="void Rotate(Vector3 eulers)",
-    ))
-    upsert_api_record(conn, ApiRecord(
-        title="Transform.position", relative_path="Transform.position.html",
-        symbol_name="Transform.position", class_name="Transform",
-        member_type="property", namespace="UnityEngine",
-        summary="The position of the transform",
-    ))
-    upsert_api_record(conn, ApiRecord(
-        title="Rigidbody", relative_path="Rigidbody.html",
-        symbol_name="Rigidbody", class_name="Rigidbody",
-        member_type="class", module_name="Physics",
-        summary="Rigidbody for physics simulation",
-        inheritance_json='["Rigidbody", "Component", "Object"]',
-    ))
+    upsert_api_record(
+        conn,
+        ApiRecord(
+            title="Transform",
+            relative_path="Transform.html",
+            symbol_name="Transform",
+            class_name="Transform",
+            member_type="class",
+            namespace="UnityEngine",
+            summary="Position rotation and scale",
+            inheritance_json='["Transform", "Component", "Object"]',
+        ),
+    )
+    upsert_api_record(
+        conn,
+        ApiRecord(
+            title="Transform.Rotate",
+            relative_path="Transform.Rotate.html",
+            symbol_name="Transform.Rotate",
+            class_name="Transform",
+            member_type="method",
+            namespace="UnityEngine",
+            summary="Rotates the transform",
+            signature="void Rotate(Vector3 eulers)",
+        ),
+    )
+    upsert_api_record(
+        conn,
+        ApiRecord(
+            title="Transform.position",
+            relative_path="Transform.position.html",
+            symbol_name="Transform.position",
+            class_name="Transform",
+            member_type="property",
+            namespace="UnityEngine",
+            summary="The position of the transform",
+        ),
+    )
+    upsert_api_record(
+        conn,
+        ApiRecord(
+            title="Rigidbody",
+            relative_path="Rigidbody.html",
+            symbol_name="Rigidbody",
+            class_name="Rigidbody",
+            member_type="class",
+            module_name="Physics",
+            summary="Rigidbody for physics simulation",
+            inheritance_json='["Rigidbody", "Component", "Object"]',
+        ),
+    )
     conn.commit()
     conn.close()
 
     # Godot records
     conn = get_connection(godot_spec.db_path)
-    upsert_api_record(conn, ApiRecord(
-        title="Node3D", relative_path="class_node3d.html",
-        symbol_name="Node3D", class_name="Node3D",
-        member_type="class",
-        summary="3D game object node",
-        inheritance_json='["Node3D", "Node", "Object"]',
-    ))
-    upsert_api_record(conn, ApiRecord(
-        title="Node3D.rotate", relative_path="class_node3d.html#rotate",
-        symbol_name="Node3D.rotate", class_name="Node3D",
-        member_type="method",
-        summary="Rotates the node",
-    ))
-    upsert_api_record(conn, ApiRecord(
-        title="RigidBody3D", relative_path="class_rigidbody3d.html",
-        symbol_name="RigidBody3D", class_name="RigidBody3D",
-        member_type="class",
-        summary="Physics body for 3D",
-        inheritance_json='["RigidBody3D", "PhysicsBody3D", "CollisionObject3D", "Node3D", "Node", "Object"]',
-    ))
+    upsert_api_record(
+        conn,
+        ApiRecord(
+            title="Node3D",
+            relative_path="class_node3d.html",
+            symbol_name="Node3D",
+            class_name="Node3D",
+            member_type="class",
+            summary="3D game object node",
+            inheritance_json='["Node3D", "Node", "Object"]',
+        ),
+    )
+    upsert_api_record(
+        conn,
+        ApiRecord(
+            title="Node3D.rotate",
+            relative_path="class_node3d.html#rotate",
+            symbol_name="Node3D.rotate",
+            class_name="Node3D",
+            member_type="method",
+            summary="Rotates the node",
+        ),
+    )
+    upsert_api_record(
+        conn,
+        ApiRecord(
+            title="RigidBody3D",
+            relative_path="class_rigidbody3d.html",
+            symbol_name="RigidBody3D",
+            class_name="RigidBody3D",
+            member_type="class",
+            summary="Physics body for 3D",
+            inheritance_json='["RigidBody3D", "PhysicsBody3D", "CollisionObject3D", "Node3D", "Node", "Object"]',
+        ),
+    )
     conn.commit()
     conn.close()
 
@@ -228,14 +274,22 @@ class TestVectorSearch:
         # All hits should be valid records in the db
         conn = get_connection(spec.db_path, readonly=True)
         for rid in rowids:
-            row = conn.execute("SELECT symbol_name FROM api_records WHERE id=?", (rid,)).fetchone()
+            row = conn.execute(
+                "SELECT symbol_name FROM api_records WHERE id=?", (rid,)
+            ).fetchone()
             assert row is not None
         conn.close()
 
     def test_rrf_merge(self):
-        r1 = SearchResult(id=1, category="api", title="A", relative_path="a", snippet="", score=0.1)
-        r2 = SearchResult(id=2, category="api", title="B", relative_path="b", snippet="", score=0.2)
-        r3 = SearchResult(id=1, category="api", title="A", relative_path="a", snippet="", score=0.05)
+        r1 = SearchResult(
+            id=1, category="api", title="A", relative_path="a", snippet="", score=0.1
+        )
+        r2 = SearchResult(
+            id=2, category="api", title="B", relative_path="b", snippet="", score=0.2
+        )
+        r3 = SearchResult(
+            id=1, category="api", title="A", relative_path="a", snippet="", score=0.05
+        )
 
         merged = _rrf_merge([r1, r2], [r3])
         assert len(merged) == 2

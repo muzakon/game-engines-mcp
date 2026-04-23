@@ -150,7 +150,9 @@ def registered_indexes(tmp_path, monkeypatch):
             topic_path="Manual",
             summary="Rotate objects in the editor or via scripts.",
             content_text="You can rotate a cube using Transform.Rotate or by editing the rotation field.",
-            key_topics_json=json.dumps(["Rotating in the editor", "Rotating via scripts"]),
+            key_topics_json=json.dumps(
+                ["Rotating in the editor", "Rotating via scripts"]
+            ),
         ),
     ):
         upsert_guide_record(conn, record)
@@ -225,7 +227,9 @@ def registered_indexes(tmp_path, monkeypatch):
             member_type="blueprint_node",
             signature="K2Node Dynamic Cast",
             topic_path="Utilities/Casting",
-            inputs_json=json.dumps([{"name": "Object", "type": "Object Wildcard", "description": ""}]),
+            inputs_json=json.dumps(
+                [{"name": "Object", "type": "Object Wildcard", "description": ""}]
+            ),
             outputs_json=json.dumps(
                 [
                     {
@@ -339,7 +343,9 @@ class TestSearchApi:
         assert any(result.docset == "blueprint-api" for result in results)
 
     def test_member_filter(self, registered_indexes):
-        results = search_api("UCableComponent", engine="unreal", version="4.26", member_type="method")
+        results = search_api(
+            "UCableComponent", engine="unreal", version="4.26", member_type="method"
+        )
         assert results
         assert all(result.member_type == "method" for result in results)
 
@@ -361,7 +367,9 @@ class TestSearchGuides:
         assert results[0].engine == "unity"
 
     def test_unreal_quickstart(self, registered_indexes):
-        results = search_guides("getting started", engine="unreal", version="4.26", docset="cpp-api")
+        results = search_guides(
+            "getting started", engine="unreal", version="4.26", docset="cpp-api"
+        )
         assert results
         assert results[0].guide_type == "quickstart"
 

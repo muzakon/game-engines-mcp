@@ -91,7 +91,11 @@ def _extract_first_paragraph(soup: BeautifulSoup) -> str:
 
 
 def _extract_summary(soup: BeautifulSoup, title: str) -> str:
-    for candidate in (_extract_hero_subtitle(soup), _extract_meta_description(soup), _extract_first_paragraph(soup)):
+    for candidate in (
+        _extract_hero_subtitle(soup),
+        _extract_meta_description(soup),
+        _extract_first_paragraph(soup),
+    ):
         if candidate and candidate.lower() != title.lower():
             return candidate[:800]
         if candidate:
@@ -156,7 +160,9 @@ def _extract_topics(soup: BeautifulSoup, limit: int = 20) -> list[str]:
     topics: list[str] = []
     seen: set[str] = set()
     main = _main_content_div(soup)
-    heading_tags = list(main.find_all(["h2", "h3", "h4"])) + list(main.select("div.heading > p"))
+    heading_tags = list(main.find_all(["h2", "h3", "h4"])) + list(
+        main.select("div.heading > p")
+    )
     for tag in heading_tags:
         text = _clean(tag.get_text(" ", strip=True))
         if not text or len(text) > 120:
@@ -191,7 +197,9 @@ def _split_symbol_title(title: str) -> tuple[str, str]:
     return title, title
 
 
-def _extract_parameters_from_signature(signature: str, member_name: str) -> tuple[list[dict[str, str]], str]:
+def _extract_parameters_from_signature(
+    signature: str, member_name: str
+) -> tuple[list[dict[str, str]], str]:
     if not signature or not member_name:
         return [], ""
 
@@ -232,7 +240,11 @@ def _extract_pin_table(soup: BeautifulSoup, section_id: str) -> list[dict[str, s
         name_cell = cells[1]
         desc_cell = cells[2]
         name_tag = name_cell.find("a")
-        name = _clean(name_tag.get_text(" ", strip=True) if name_tag else name_cell.get_text(" ", strip=True))
+        name = _clean(
+            name_tag.get_text(" ", strip=True)
+            if name_tag
+            else name_cell.get_text(" ", strip=True)
+        )
         type_tag = name_cell.find("div", class_="name-cell-arguments")
         pin_type = _clean(type_tag.get_text(" ", strip=True)) if type_tag else ""
         description = _clean(desc_cell.get_text(" ", strip=True))
@@ -241,7 +253,9 @@ def _extract_pin_table(soup: BeautifulSoup, section_id: str) -> list[dict[str, s
     return pins
 
 
-def _cpp_member_type(title: str, signature: str, refs: dict[str, str], soup: BeautifulSoup) -> str:
+def _cpp_member_type(
+    title: str, signature: str, refs: dict[str, str], soup: BeautifulSoup
+) -> str:
     signature_lower = signature.lower()
     title_lower = title.lower()
     headings = {
@@ -259,7 +273,10 @@ def _cpp_member_type(title: str, signature: str, refs: dict[str, str], soup: Bea
         return "method"
     if title.count("::") >= 1:
         return "property"
-    if any(h.startswith("functions") or h in {"constructors", "variables", "operators"} for h in headings):
+    if any(
+        h.startswith("functions") or h in {"constructors", "variables", "operators"}
+        for h in headings
+    ):
         return "class"
     if "module" in refs and "header" not in {k.lower() for k in refs}:
         return "module"
@@ -310,11 +327,18 @@ def parse_unreal_cpp_html(html_path: Path, docs_root: Path) -> ApiRecord | Guide
     signature = _extract_code_signature(soup)
     symbol_name, class_name = _split_symbol_title(title)
     member_name = symbol_name.split("::", 1)[1] if "::" in symbol_name else symbol_name
-    parameters, returns_text = _extract_parameters_from_signature(signature, member_name)
+    parameters, returns_text = _extract_parameters_from_signature(
+        signature, member_name
+    )
     member_type = _cpp_member_type(title, signature, refs, soup)
     if member_type == "module":
         class_name = ""
-    elif "::" not in symbol_name and member_type not in {"class", "struct", "enum", "interface"}:
+    elif "::" not in symbol_name and member_type not in {
+        "class",
+        "struct",
+        "enum",
+        "interface",
+    }:
         class_name = ""
 
     hierarchy = _extract_hierarchy(soup)
@@ -329,7 +353,9 @@ def parse_unreal_cpp_html(html_path: Path, docs_root: Path) -> ApiRecord | Guide
         topic_path=topic_path,
         member_type=member_type,
         signature=signature,
-        parameters_json=json.dumps(parameters, ensure_ascii=False) if parameters else "",
+        parameters_json=json.dumps(parameters, ensure_ascii=False)
+        if parameters
+        else "",
         returns_text=returns_text,
         summary=summary,
         remarks=remarks,

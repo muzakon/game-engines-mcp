@@ -92,7 +92,10 @@ def _guide_type_for(relative_path: str, title: str) -> str:
     if relative_path == "index.html":
         return "overview"
     if path_lower.startswith("getting_started/"):
-        if any(token in path_lower for token in ("step_by_step", "first_2d_game", "first_3d_game")):
+        if any(
+            token in path_lower
+            for token in ("step_by_step", "first_2d_game", "first_3d_game")
+        ):
             return "tutorial"
         if "introduction" in path_lower:
             return "introduction"
@@ -200,7 +203,9 @@ def _extract_description_text(class_section: Tag | None) -> str:
 
 
 def _is_classref_item(tag: Tag) -> bool:
-    return tag.name == "p" and any(cls.startswith("classref-") for cls in tag.get("class", ()))
+    return tag.name == "p" and any(
+        cls.startswith("classref-") for cls in tag.get("class", ())
+    )
 
 
 def _collect_following_blocks(item_tag: Tag) -> list[str]:
@@ -317,7 +322,9 @@ def _record_for_item(
         namespace="",
         member_type=member_type,
         signature=signature,
-        parameters_json=json.dumps(parameters, ensure_ascii=False) if parameters else "",
+        parameters_json=json.dumps(parameters, ensure_ascii=False)
+        if parameters
+        else "",
         returns_text=returns_text,
         summary=summary,
         remarks=remarks,
@@ -348,7 +355,9 @@ def _parse_enumeration_records(
         if record:
             records.append(record)
 
-    for constant_tag in content_div.select("section#enumerations p.classref-enumeration-constant"):
+    for constant_tag in content_div.select(
+        "section#enumerations p.classref-enumeration-constant"
+    ):
         record = _record_for_item(
             constant_tag,
             owner_name=owner_name,
@@ -376,7 +385,9 @@ def _parse_class_records(
     full_text = _extract_main_text(content_div)
     inheritance = _extract_inheritance_chain(class_section, title)
     base_member_type = "scope" if title.startswith("@") else "class"
-    member_topic_path = "/".join(part for part in (_topic_path(relative_path), title) if part)
+    member_topic_path = "/".join(
+        part for part in (_topic_path(relative_path), title) if part
+    )
 
     records: list[ApiRecord] = [
         ApiRecord(
@@ -386,11 +397,15 @@ def _parse_class_records(
             class_name=title,
             namespace="",
             member_type=base_member_type,
-            signature=f"Inherits: {' < '.join(inheritance[1:])}" if len(inheritance) > 1 else "",
+            signature=f"Inherits: {' < '.join(inheritance[1:])}"
+            if len(inheritance) > 1
+            else "",
             summary=brief_description or description_text[:800],
             remarks=description_text,
             topic_path=_topic_path(relative_path),
-            inheritance_json=json.dumps(inheritance, ensure_ascii=False) if inheritance else "",
+            inheritance_json=json.dumps(inheritance, ensure_ascii=False)
+            if inheritance
+            else "",
             content_text=full_text,
             source_html_path=str(html_path),
         )
@@ -450,7 +465,9 @@ def parse_godot_html(html_path: Path, docs_root: Path) -> list[ApiRecord | Guide
         raw = html_path.read_text(encoding="utf-8", errors="replace")
     except Exception as exc:
         logger.warning("Failed to read %s: %s", html_path, exc)
-        return [GuideRecord(relative_path=relative_path, source_html_path=str(html_path))]
+        return [
+            GuideRecord(relative_path=relative_path, source_html_path=str(html_path))
+        ]
 
     soup = BeautifulSoup(raw, "lxml")
     content_div = _content_root(soup)

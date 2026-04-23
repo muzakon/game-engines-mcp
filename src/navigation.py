@@ -9,11 +9,9 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 from .db import get_connection
 from .docsets import DocsetSpec, select_docsets
-from .models import SymbolReference
 from .search import IndexNotReadyError
 
 logger = logging.getLogger(__name__)
@@ -22,6 +20,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ClassInfo:
     """Summary of a class with its direct members."""
+
     symbol_name: str
     title: str
     member_type: str
@@ -41,6 +40,7 @@ class ClassInfo:
 @dataclass
 class ModuleInfo:
     """Summary of a module or namespace."""
+
     name: str
     engine: str
     version: str
@@ -53,6 +53,7 @@ class ModuleInfo:
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def browse_class(
     class_name: str,
@@ -240,15 +241,17 @@ def browse_inheritance(
                 if not row:
                     break
 
-                chain.append({
-                    "symbol_name": row["symbol_name"] or row["class_name"],
-                    "title": row["title"],
-                    "relative_path": row["relative_path"],
-                    "summary": row["summary"],
-                    "engine": spec.engine,
-                    "version": spec.version,
-                    "docset": spec.docset,
-                })
+                chain.append(
+                    {
+                        "symbol_name": row["symbol_name"] or row["class_name"],
+                        "title": row["title"],
+                        "relative_path": row["relative_path"],
+                        "summary": row["summary"],
+                        "engine": spec.engine,
+                        "version": spec.version,
+                        "docset": spec.docset,
+                    }
+                )
 
                 # Walk up the inheritance
                 inh_json = row["inheritance_json"]
@@ -344,7 +347,8 @@ def browse_module(
                 continue
 
             classes = [
-                row[0] for row in conn.execute(
+                row[0]
+                for row in conn.execute(
                     """
                     SELECT DISTINCT COALESCE(symbol_name, class_name)
                     FROM api_records
@@ -446,6 +450,7 @@ def get_related_symbols(
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
 
 def _resolve_specs(
     *,

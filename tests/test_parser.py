@@ -361,15 +361,22 @@ def godot_docset(tmp_path) -> DocsetSpec:
 
 class TestUnityHelpers:
     def test_scriptref_marker_wins(self):
-        soup = BeautifulSoup('<div id="DocsAnalyticsData" data-pagetype="scriptref"></div>', "lxml")
+        soup = BeautifulSoup(
+            '<div id="DocsAnalyticsData" data-pagetype="scriptref"></div>', "lxml"
+        )
         assert classify_page("en/Manual/foo.html", soup) == "api"
 
     def test_manual_marker_wins(self):
-        soup = BeautifulSoup('<div id="DocsAnalyticsData" data-pagetype="manual"></div>', "lxml")
+        soup = BeautifulSoup(
+            '<div id="DocsAnalyticsData" data-pagetype="manual"></div>', "lxml"
+        )
         assert classify_page("en/ScriptReference/foo.html", soup) == "guide"
 
     def test_guide_type(self):
-        assert guide_type_for("en/Manual/class-Transform.html", "Transforms") == "reference"
+        assert (
+            guide_type_for("en/Manual/class-Transform.html", "Transforms")
+            == "reference"
+        )
         assert guide_type_for("en/Manual/tutorial-foo.html", "Foo") == "tutorial"
 
 
@@ -377,7 +384,9 @@ class TestDiscovery:
     def test_unity_discovery_skips_static(self, unity_docset):
         sr = unity_docset.docs_root / "en" / "ScriptReference"
         sr.mkdir(parents=True)
-        (sr / "Transform.Rotate.html").write_text(SCRIPTREF_METHOD_HTML, encoding="utf-8")
+        (sr / "Transform.Rotate.html").write_text(
+            SCRIPTREF_METHOD_HTML, encoding="utf-8"
+        )
 
         manual = unity_docset.docs_root / "en" / "Manual"
         manual.mkdir(parents=True)
@@ -385,7 +394,9 @@ class TestDiscovery:
 
         skipped = unity_docset.docs_root / "en" / "StaticFiles"
         skipped.mkdir(parents=True)
-        (skipped / "skip.html").write_text("<html><body>skip</body></html>", encoding="utf-8")
+        (skipped / "skip.html").write_text(
+            "<html><body>skip</body></html>", encoding="utf-8"
+        )
 
         names = {path.name for path in discover_html_files(unity_docset)}
         assert names == {"Transform.Rotate.html", "class-Transform.html"}
@@ -415,12 +426,22 @@ class TestUnityParser:
         assert isinstance(record, GuideRecord)
         assert record.guide_type == "reference"
         assert record.topic_path == "Manual"
-        assert json.loads(record.key_topics_json) == ["The Transform Component", "Parenting"]
+        assert json.loads(record.key_topics_json) == [
+            "The Transform Component",
+            "Parenting",
+        ]
 
 
 class TestUnrealCppParser:
     def test_class_page(self, unreal_cpp_docset):
-        target = unreal_cpp_docset.docs_root / "en-US" / "API" / "Plugins" / "CableComponent" / "UCableComponent"
+        target = (
+            unreal_cpp_docset.docs_root
+            / "en-US"
+            / "API"
+            / "Plugins"
+            / "CableComponent"
+            / "UCableComponent"
+        )
         target.mkdir(parents=True)
         html_path = target / "index.html"
         html_path.write_text(UNREAL_CPP_CLASS_HTML, encoding="utf-8")
@@ -454,7 +475,11 @@ class TestUnrealCppParser:
         assert record.member_type == "method"
         assert record.source_path.endswith("CableComponent.cpp")
         params = json.loads(record.parameters_json)
-        assert [item["name"] for item in params] == ["Actor", "ComponentProperty", "SocketName"]
+        assert [item["name"] for item in params] == [
+            "Actor",
+            "ComponentProperty",
+            "SocketName",
+        ]
         assert record.returns_text == "void"
 
     def test_quickstart_page(self, unreal_cpp_docset):
@@ -489,7 +514,10 @@ class TestUnrealBlueprintParser:
         assert record.topic_path == "Utilities/Casting"
         assert record.signature == "K2Node Dynamic Cast"
         assert json.loads(record.inputs_json)[0]["name"] == "Object"
-        assert "Movie Scene Actor Reference Section" in json.loads(record.outputs_json)[0]["name"]
+        assert (
+            "Movie Scene Actor Reference Section"
+            in json.loads(record.outputs_json)[0]["name"]
+        )
 
 
 class TestGodotParser:
@@ -510,13 +538,17 @@ class TestGodotParser:
         assert json.loads(by_symbol["Node"].inheritance_json) == ["Node", "Object"]
         assert by_symbol["Node.add_child"].member_type == "method"
         assert by_symbol["Node.add_child"].returns_text == "void"
-        assert json.loads(by_symbol["Node.add_child"].parameters_json)[0]["name"] == "node"
+        assert (
+            json.loads(by_symbol["Node.add_child"].parameters_json)[0]["name"] == "node"
+        )
         assert by_symbol["Node.ready"].member_type == "signal"
         assert by_symbol["Node.name"].member_type == "property"
         assert by_symbol["Node.NOTIFICATION_READY"].member_type == "constant"
         assert by_symbol["Node.ProcessMode"].member_type == "enum"
         assert by_symbol["Node.PROCESS_MODE_INHERIT"].member_type == "enum_constant"
-        assert by_symbol["Node.add_child"].relative_path.endswith("#class-node-method-add-child")
+        assert by_symbol["Node.add_child"].relative_path.endswith(
+            "#class-node-method-add-child"
+        )
 
     def test_guide_page(self, godot_docset):
         target = godot_docset.docs_root / "getting_started" / "introduction"
@@ -528,16 +560,23 @@ class TestGodotParser:
         assert isinstance(record, GuideRecord)
         assert record.guide_type == "introduction"
         assert record.topic_path == "getting_started/introduction"
-        assert json.loads(record.key_topics_json) == ["What is Godot?", "Programming languages"]
+        assert json.loads(record.key_topics_json) == [
+            "What is Godot?",
+            "Programming languages",
+        ]
 
     def test_indexer_counts_member_records(self, godot_docset):
         class_target = godot_docset.docs_root / "classes"
         class_target.mkdir(parents=True)
-        (class_target / "class_node.html").write_text(GODOT_CLASS_HTML, encoding="utf-8")
+        (class_target / "class_node.html").write_text(
+            GODOT_CLASS_HTML, encoding="utf-8"
+        )
 
         guide_target = godot_docset.docs_root / "getting_started" / "introduction"
         guide_target.mkdir(parents=True)
-        (guide_target / "introduction_to_godot.html").write_text(GODOT_GUIDE_HTML, encoding="utf-8")
+        (guide_target / "introduction_to_godot.html").write_text(
+            GODOT_GUIDE_HTML, encoding="utf-8"
+        )
 
         stats = build_index(godot_docset, rebuild=True, batch_size=10)
         assert stats["total"] == 2

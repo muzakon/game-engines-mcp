@@ -19,7 +19,7 @@ import logging
 import time
 from pathlib import Path
 
-from .db import Database, get_connection, init_db, rebuild_db, upsert_api_record, upsert_guide_record
+from .db import Database
 from .docsets import DocsetSpec, get_docset, select_docsets
 from .models import ApiRecord, GuideRecord
 from .parser import discover_html_files, parse_html_records
@@ -104,7 +104,12 @@ class Indexer:
                 db.commit()
                 logger.info(
                     "[%s] Progress: %d/%d (api=%d, guide=%d, errors=%d)",
-                    spec.key, index, total, api_count, guide_count, errors,
+                    spec.key,
+                    index,
+                    total,
+                    api_count,
+                    guide_count,
+                    errors,
                 )
 
         db.commit()
@@ -116,10 +121,12 @@ class Indexer:
         if self.build_vectors:
             try:
                 from .vecsearch import build_vector_index
+
                 vector_stats = build_vector_index(spec)
                 logger.info(
                     "[%s] Vector index built: api=%d, guide=%d",
-                    spec.key, vector_stats.get("api_embedded", 0),
+                    spec.key,
+                    vector_stats.get("api_embedded", 0),
                     vector_stats.get("guide_embedded", 0),
                 )
             except Exception as exc:
@@ -143,7 +150,11 @@ class Indexer:
             stats["vector_index"] = vector_stats
         logger.info(
             "[%s] Indexing complete: api=%d, guide=%d, errors=%d in %.1fs",
-            spec.key, api_count, guide_count, errors, elapsed,
+            spec.key,
+            api_count,
+            guide_count,
+            errors,
+            elapsed,
         )
         return stats
 
@@ -182,6 +193,7 @@ class Indexer:
 # Legacy function API (backward-compatible wrappers)
 # ---------------------------------------------------------------------------
 
+
 def build_index(
     docset: DocsetSpec | None = None,
     *,
@@ -208,6 +220,8 @@ def build_indexes(
     """Build all matching registered docsets."""
     idx = Indexer(batch_size=batch_size, rebuild=rebuild)
     return idx.build_all(
-        engine=engine, version=version, docset=docset,
+        engine=engine,
+        version=version,
+        docset=docset,
         available_only=available_only,
     )

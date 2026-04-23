@@ -139,7 +139,9 @@ def _load_manifest_cached(manifest_path_str: str) -> tuple[DocsetSpec, ...]:
         version = str(item["version"])
         docset = str(item["docset"])
         default_db = DATA_DIR / engine.lower() / version / f"{docset.lower()}.db"
-        default_docs_root = PROJECT_ROOT / "docs" / engine.lower() / version / docset.lower()
+        default_docs_root = (
+            PROJECT_ROOT / "docs" / engine.lower() / version / docset.lower()
+        )
         spec = DocsetSpec(
             engine=engine,
             version=version,
@@ -154,7 +156,9 @@ def _load_manifest_cached(manifest_path_str: str) -> tuple[DocsetSpec, ...]:
         )
         docsets.append(spec)
 
-    return tuple(sorted(docsets, key=lambda spec: (spec.engine, spec.version, spec.docset)))
+    return tuple(
+        sorted(docsets, key=lambda spec: (spec.engine, spec.version, spec.docset))
+    )
 
 
 def _load_from_config_yaml() -> tuple[DocsetSpec, ...] | None:
@@ -188,7 +192,9 @@ def _load_from_config_yaml() -> tuple[DocsetSpec, ...] | None:
             docsets.append(spec)
 
     logger.info("Loaded %d docset(s) from engines.local.yaml", len(docsets))
-    return tuple(sorted(docsets, key=lambda spec: (spec.engine, spec.version, spec.docset)))
+    return tuple(
+        sorted(docsets, key=lambda spec: (spec.engine, spec.version, spec.docset))
+    )
 
 
 def clear_docset_cache() -> None:
@@ -216,7 +222,9 @@ def get_registered_docsets(manifest_path: Path | None = None) -> tuple[DocsetSpe
     return _load_manifest_cached(str(path.resolve()))
 
 
-def _matches(spec: DocsetSpec, engine: str | None, version: str | None, docset: str | None) -> bool:
+def _matches(
+    spec: DocsetSpec, engine: str | None, version: str | None, docset: str | None
+) -> bool:
     """Check whether a spec matches the given filter criteria."""
     if engine and spec.engine != engine:
         return False
@@ -278,14 +286,18 @@ def get_docset(
         manifest_path=manifest_path,
     )
     if not matches:
-        selection = ", ".join(
-            part for part in (
-                f"engine={engine!r}" if engine else "",
-                f"version={version!r}" if version else "",
-                f"docset={docset!r}" if docset else "",
+        selection = (
+            ", ".join(
+                part
+                for part in (
+                    f"engine={engine!r}" if engine else "",
+                    f"version={version!r}" if version else "",
+                    f"docset={docset!r}" if docset else "",
+                )
+                if part
             )
-            if part
-        ) or "default selection"
+            or "default selection"
+        )
         raise ValueError(f"No docset matched {selection}.")
     if len(matches) > 1:
         labels = ", ".join(spec.key for spec in matches)

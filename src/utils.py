@@ -36,7 +36,9 @@ def safe_json_parse(text: str) -> Any:
         return []
 
 
-def _target_label(engine: str, version: str, docset: str, docset_label: str = "") -> str:
+def _target_label(
+    engine: str, version: str, docset: str, docset_label: str = ""
+) -> str:
     """Build a human-readable label like ``Unreal 4.26 cpp-api [unreal/4.26/cpp-api]``."""
     if docset_label:
         return f"{docset_label} [{engine}/{version}/{docset}]"
@@ -66,7 +68,9 @@ def format_docset_status(rows: list[dict[str, str | bool]]) -> str:
     return "\n".join(lines).rstrip()
 
 
-def format_search_results(results: list[SearchResult], header: str | None = None) -> str:
+def format_search_results(
+    results: list[SearchResult], header: str | None = None
+) -> str:
     """Render a list of search results as a numbered text report."""
     if not results:
         return "No results found."
@@ -77,7 +81,9 @@ def format_search_results(results: list[SearchResult], header: str | None = None
         lines.append("=" * len(header))
     for i, result in enumerate(results, 1):
         lines.append(f"--- Result {i} [{result.category}] ---")
-        target = _target_label(result.engine, result.version, result.docset, result.docset_label)
+        target = _target_label(
+            result.engine, result.version, result.docset, result.docset_label
+        )
         if target:
             lines.append(f"Target: {target}")
         lines.append(f"Title: {result.title}")
@@ -165,7 +171,9 @@ def format_symbol_ref(ref: SymbolReference) -> str:
         lines,
         "## Parameters",
         ref.parameters_json,
-        lambda item: f"- {item.get('name', '?')}: {item.get('description', '')}".rstrip(),
+        lambda item: (
+            f"- {item.get('name', '?')}: {item.get('description', '')}".rstrip()
+        ),
     )
 
     if ref.returns_text:
@@ -237,7 +245,9 @@ def format_doc_page(payload: dict) -> str:
     return "(unrecognized record)"
 
 
-def format_translation_results(results: list, source_symbol: str, source_engine: str, target_engine: str) -> str:
+def format_translation_results(
+    results: list, source_symbol: str, source_engine: str, target_engine: str
+) -> str:
     """Format cross-engine translation results as a readable string."""
     if not results:
         return (
@@ -252,7 +262,9 @@ def format_translation_results(results: list, source_symbol: str, source_engine:
         "=" * 40,
     ]
     for i, r in enumerate(results, 1):
-        conf_label = {"high": "HIGH", "medium": "MED", "low": "LOW"}.get(r.confidence, r.confidence)
+        conf_label = {"high": "HIGH", "medium": "MED", "low": "LOW"}.get(
+            r.confidence, r.confidence
+        )
         lines.append(f"--- Result {i} [{conf_label} confidence] ---")
         lines.append(f"Symbol: {r.target_symbol}")
         lines.append(f"Title: {r.target_title}")
@@ -261,7 +273,9 @@ def format_translation_results(results: list, source_symbol: str, source_engine:
         if r.target_summary:
             lines.append(f"Summary: {truncate(r.target_summary, 300)}")
         lines.append(f"Path: {r.target_relative_path}")
-        lines.append(f"Target: {r.target_docset_label} [{r.target_engine}/{r.target_docset}]")
+        lines.append(
+            f"Target: {r.target_docset_label} [{r.target_engine}/{r.target_docset}]"
+        )
         lines.append("")
     return "\n".join(lines).rstrip()
 
@@ -342,7 +356,9 @@ def format_class_list(results: list[dict]) -> str:
         summary = truncate(r.get("summary", ""), 80)
         suffix = f" — {summary}" if summary else ""
         lines.append(f"- **{r['symbol_name']}**{suffix}")
-        lines.append(f"  [{r['engine']}/{r['version']}/{r['docset']}] {r['relative_path']}")
+        lines.append(
+            f"  [{r['engine']}/{r['version']}/{r['docset']}] {r['relative_path']}"
+        )
     return "\n".join(lines)
 
 
@@ -351,7 +367,11 @@ def format_inheritance_chain(chain: list[dict]) -> str:
     if not chain:
         return "No inheritance information found."
 
-    lines = ["Inheritance chain:", "  " + " -> ".join(r["symbol_name"] for r in chain), ""]
+    lines = [
+        "Inheritance chain:",
+        "  " + " -> ".join(r["symbol_name"] for r in chain),
+        "",
+    ]
     for r in chain:
         lines.append(f"- **{r['symbol_name']}**")
         if r.get("summary"):

@@ -1,8 +1,8 @@
 """Embedding model wrapper for semantic search.
 
-Provides a singleton :class:`EmbeddingModel` that lazily loads
-``all-MiniLM-L6-v2`` and exposes batch-encode helpers.  Falls back to
-a hash-based fake embedding when the model cannot be loaded (e.g. in
+Provides a singleton :class:`EmbeddingModel` that lazily loads a
+``fastembed`` ONNX model and exposes batch-encode helpers.  Falls back
+to a hash-based fake embedding when the model cannot be loaded (e.g. in
 constrained environments without disk space for the model weights).
 """
 
@@ -22,9 +22,9 @@ logger = logging.getLogger(__name__)
 
 
 class EmbeddingModel:
-    """Lazy-loading wrapper around a sentence-transformers model.
+    """Lazy-loading wrapper around a fastembed ONNX model.
 
-    If the model cannot be loaded (missing weights, no torch, etc.),
+    If the model cannot be loaded (missing weights, no onnxruntime, etc.),
     a deterministic hash-based fake embedding is used so that the rest
     of the vector search pipeline still functions for testing.
     """
@@ -49,8 +49,11 @@ class EmbeddingModel:
         if self._loaded:
             return
         try:
-            from sentence_transformers import SentenceTransformer
-            self._model = SentenceTransformer(VECTOR_MODEL_NAME)
+            from fastembed import TextEmbedding
+
+            self._model = TextEmbedding(VECTOR_MODEL_NAME)
+            # Warm up: encode a dummy text to trigger model download
+            list(self._model.embed(["warmup"]))
             self._loaded = True
             logger.info("Loaded embedding model: %s", VECTOR_MODEL_NAME)
         except Exception as exc:
@@ -73,12 +76,8 @@ class EmbeddingModel:
         if self._fallback:
             return self._hash_encode(texts)
 
-        return self._model.encode(
-            texts,
-            batch_size=EMBEDDING_BATCH_SIZE,
-            normalize_embeddings=True,
-            show_progress_bar=False,
-        ).astype(np.float32)
+        embeddings = list(self._model.embed(texts, batch_size=EMBEDDING_BATCH_SIZE))
+        return np.array(embeddings, dtype=np.float32)
 
     def encode_single(self, text: str) -> NDArray[np.float32]:
         """Encode a single text string into a float32 embedding vector."""
@@ -90,7 +89,7 @@ class EmbeddingModel:
         for i, text in enumerate(texts):
             h = hashlib.sha256(text.encode("utf-8")).digest()
             values = struct.unpack(f"{VECTOR_DIM // 2}H", h * (VECTOR_DIM // 32 + 1))
-            out[i, :len(values)] = np.array(values, dtype=np.float32) / 65535.0
+            out[i, : len(values)] = np.array(values, dtype=np.float32) / 65535.0
             norm = np.linalg.norm(out[i])
             if norm > 0:
                 out[i] /= norm

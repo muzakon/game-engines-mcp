@@ -44,7 +44,9 @@ HTML_EXTENSIONS: frozenset[str] = frozenset({".html", ".htm"})
 SKIP_FILENAMES: frozenset[str] = frozenset({"30_search.html", "docdata.html"})
 """Filenames to skip regardless of extension."""
 
-UNITY_SKIP_DIRS: frozenset[str] = frozenset({"StaticFiles", "StaticFilesManual", "uploads"})
+UNITY_SKIP_DIRS: frozenset[str] = frozenset(
+    {"StaticFiles", "StaticFilesManual", "uploads"}
+)
 """Unity-specific directories to skip during HTML discovery."""
 
 # -- Limits -----------------------------------------------------------------
@@ -61,10 +63,10 @@ MAX_SEARCH_LIMIT: int = 50
 # -- Vector search ---------------------------------------------------------
 
 VECTOR_DIM: int = 384
-"""Embedding dimension (all-MiniLM-L6-v2 produces 384-dim vectors)."""
+"""Embedding dimension (BAAI/bge-small-en-v1.5 produces 384-dim vectors)."""
 
-VECTOR_MODEL_NAME: str = "all-MiniLM-L6-v2"
-"""Sentence-transformers model used for embedding generation."""
+VECTOR_MODEL_NAME: str = "BAAI/bge-small-en-v1.5"
+"""Fastembed/ONNX model used for embedding generation."""
 
 VECTOR_DB_DIR: Path = DATA_DIR / "vectors"
 """Directory where LanceDB vector stores are saved."""

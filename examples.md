@@ -22,7 +22,7 @@ If the server is already running on the default port:
 ```json
 {
   "mcpServers": {
-    "unityMCP": {
+    "gameEngineMCP": {
       "url": "http://localhost:8080/mcp"
     }
   }
@@ -36,11 +36,11 @@ If you want the MCP client to launch this repo directly:
 ```json
 {
   "mcpServers": {
-    "unityMCP": {
+    "gameEngineMCP": {
       "command": "uv",
       "args": [
         "--directory",
-        "/absolute/path/to/unity-mcp",
+        "/absolute/path/to/game-engine-mcp",
         "run",
         "python",
         "scripts/run_server.py",
@@ -58,7 +58,7 @@ If you later publish this project as a package, the config can look like this:
 ```json
 {
   "mcpServers": {
-    "unityMCP": {
+    "gameEngineMCP": {
       "command": "uvx",
       "args": [
         "--from",
@@ -72,6 +72,16 @@ If you later publish this project as a package, the config can look like this:
 ```
 
 ## Prompt Examples
+
+### Hybrid / semantic search (new)
+
+These use `search_engine_docs` which combines keyword + vector search:
+
+- `Search the docs for "how to implement double jump" in Godot.`
+- `Use the docs MCP and find pages about particle effects in Unity.`
+- `Find documentation about spawning enemies in Unreal, use hybrid search.`
+- `Search engine docs for "camera follow player" in Godot 4.6.`
+- `Use semantic search to find Godot docs about saving and loading game state.`
 
 ### Unity examples
 
@@ -93,10 +103,30 @@ If you later publish this project as a package, the config can look like this:
 - `Search the Unreal 4.26 blueprint-api docset for Get Actor Location and list the inputs and outputs.`
 - `Find the Blueprint node Cast To MovieSceneActorReferenceSection and explain its pins.`
 
+### Navigation examples (new)
+
+- `Browse the Transform class in Unity docs and show all its methods and properties.`
+- `Show me the full inheritance chain for CharacterBody3D in Godot 4.6.`
+- `List all methods of the Node class in Godot.`
+- `Show me all classes starting with "Rigid" in Godot 4.6.`
+- `What members does UCableComponent have? Filter to methods only.`
+- `Find symbols related to Transform.position in Unity docs.`
+- `Browse the Physics module in Unity docs.`
+
+### Cross-engine translation examples (new)
+
+- `What is the Godot equivalent of Unity's Rigidbody?`
+- `Translate Transform from Unity to Godot.`
+- `Find the Unreal equivalent of Godot's Node.add_child.`
+- `Compare Camera across Unity, Godot, and Unreal using the docs MCP.`
+- `What is the Unity equivalent of Unreal's AActor?`
+- `Compare how input handling works across all engines.`
+
 ### Comparison examples
 
 - `Compare Unity Transform.Rotate and Unreal FRotator usage using the connected documentation MCP.`
 - `Using the docs MCP server, compare Unity Rigidbody movement with Unreal CharacterMovementComponent at a high level.`
+- `Compare the Godot and Unity approaches to scene management using the docs MCP.`
 
 ### If you want to force tool usage
 
@@ -116,13 +146,28 @@ Give the exact symbol or node name:
 - `UCableComponent::SetAttachEndTo`
 - `Cast To Actor`
 
-### Conceptual lookup
+### Conceptual / semantic lookup
 
-Say the engine and version clearly:
+Use natural language and mention the engine:
 
-- `Use Unity 6000.4.3f1 docs`
-- `Use Unreal 4.26 cpp-api docs`
-- `Use Unreal 4.26 blueprint-api docs`
+- `Search for "how to make a character jump" in Godot docs`
+- `Find pages about physics simulation in Unity`
+- `How does collision detection work in Unreal?`
+
+### Navigation / exploration
+
+Ask about structure:
+
+- `Show me all members of the Node class in Godot`
+- `What does the inheritance chain for Rigidbody look like in Unity?`
+- `List all classes in the Unreal cpp-api docset`
+
+### Cross-engine
+
+Mention both engines:
+
+- `What is the Godot equivalent of Unity's Rigidbody?`
+- `Compare Camera across all engines`
 
 ### Ambiguous request
 
@@ -135,5 +180,7 @@ Mention the docset directly:
 
 - Exact symbol question: give the exact symbol name.
 - Conceptual question: mention engine, version, and topic.
+- Natural language question: use `search_engine_docs` with `mode="hybrid"` or `"semantic"`.
 - Unreal question: specify `cpp-api` or `blueprint-api` when needed.
+- Cross-engine question: mention both source and target engine.
 - If the client is not using MCP, explicitly say `use the docs MCP server`.

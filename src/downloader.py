@@ -32,14 +32,13 @@ logger = logging.getLogger(__name__)
 CONFIG_PATH = PROJECT_ROOT / "config.yaml"
 ENGINES_PATH = PROJECT_ROOT / "engines.local.yaml"
 
-GITHUB_RELEASE_URL = (
-    "https://github.com/{owner}/{repo}/releases/download/{tag}/{asset}"
-)
+GITHUB_RELEASE_URL = "https://github.com/{owner}/{repo}/releases/download/{tag}/{asset}"
 
 
 # ---------------------------------------------------------------------------
 # Configuration dataclasses
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class ReleaseConfig:
@@ -69,6 +68,7 @@ class AppConfig:
 # ---------------------------------------------------------------------------
 # Downloader
 # ---------------------------------------------------------------------------
+
 
 class DatabaseDownloader:
     """Download and decompress ``.db.gz`` assets from GitHub Releases.
@@ -139,7 +139,9 @@ class DatabaseDownloader:
             return self._config
 
         if not self._config_path.exists():
-            raise FileNotFoundError(f"Configuration file not found: {self._config_path}")
+            raise FileNotFoundError(
+                f"Configuration file not found: {self._config_path}"
+            )
 
         release_cfg = self._load_release_config(self._config_path)
         engines = self._load_engines(self._engines_path)
@@ -228,6 +230,7 @@ class DatabaseDownloader:
 # ---------------------------------------------------------------------------
 # Legacy function API (kept for backward compatibility)
 # ---------------------------------------------------------------------------
+
 
 def load_config(
     config_path: Path | None = None,

@@ -29,7 +29,9 @@ ParsedRecord = ApiRecord | GuideRecord
 ParsedRecords = list[ParsedRecord]
 
 
-def discover_html_files(docset: DocsetSpec | None = None, root: Path | None = None) -> list[Path]:
+def discover_html_files(
+    docset: DocsetSpec | None = None, root: Path | None = None
+) -> list[Path]:
     """Recursively find all indexable HTML files for a docset."""
 
     docset = docset or get_docset()

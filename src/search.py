@@ -17,7 +17,6 @@ from __future__ import annotations
 import re
 import sqlite3
 from collections import Counter
-from pathlib import Path
 from typing import Optional
 
 from .config import DEFAULT_SEARCH_LIMIT, MAX_SEARCH_LIMIT
@@ -30,6 +29,7 @@ from .models import GuideReference, SearchResult, SymbolReference
 # Exceptions
 # ---------------------------------------------------------------------------
 
+
 class IndexNotReadyError(RuntimeError):
     """Raised when a selected docset exists but has not been indexed yet."""
 
@@ -38,7 +38,7 @@ class IndexNotReadyError(RuntimeError):
 # FTS helpers
 # ---------------------------------------------------------------------------
 
-_FTS_RESERVED = re.compile(r'[\"\(\)\*\:\^]')
+_FTS_RESERVED = re.compile(r"[\"\(\)\*\:\^]")
 
 _API_BM25_WEIGHTS = "12.0, 9.0, 6.0, 3.0, 5.0, 3.0, 2.0, 1.5, 1.0, 0.5"
 _GUIDE_BM25_WEIGHTS = "8.0, 4.0, 5.0, 3.0, 1.0"
@@ -64,6 +64,7 @@ def _fts_or(terms: list[str]) -> str:
 # ---------------------------------------------------------------------------
 # Internal row-mappers
 # ---------------------------------------------------------------------------
+
 
 def _api_row_to_result(
     row: sqlite3.Row,
@@ -119,6 +120,7 @@ def _guide_row_to_result(
 # DocSearcher class
 # ---------------------------------------------------------------------------
 
+
 class DocSearcher:
     """Search and retrieve documentation across one or more indexed docsets.
 
@@ -143,15 +145,25 @@ class DocSearcher:
         Uses exact match, then LIKE, then FTS5 with BM25 scoring.
         """
         limit = max(1, min(limit, MAX_SEARCH_LIMIT))
-        specs = self._resolve_indexed_docsets(engine=engine, version=version, docset=docset)
+        specs = self._resolve_indexed_docsets(
+            engine=engine, version=version, docset=docset
+        )
 
         results: list[SearchResult] = []
         per_docset_limit = max(limit, 10)
         for spec in specs:
             results.extend(
-                self._search_api_single(query, spec, limit=per_docset_limit, member_type=member_type)
+                self._search_api_single(
+                    query, spec, limit=per_docset_limit, member_type=member_type
+                )
             )
-        results.sort(key=lambda item: (item.score, item.title.lower(), item.relative_path.lower()))
+        results.sort(
+            key=lambda item: (
+                item.score,
+                item.title.lower(),
+                item.relative_path.lower(),
+            )
+        )
         return results[:limit]
 
     def search_guides(
@@ -166,15 +178,25 @@ class DocSearcher:
     ) -> list[SearchResult]:
         """Search conceptual/guide documentation."""
         limit = max(1, min(limit, MAX_SEARCH_LIMIT))
-        specs = self._resolve_indexed_docsets(engine=engine, version=version, docset=docset)
+        specs = self._resolve_indexed_docsets(
+            engine=engine, version=version, docset=docset
+        )
 
         results: list[SearchResult] = []
         per_docset_limit = max(limit, 10)
         for spec in specs:
             results.extend(
-                self._search_guides_single(query, spec, limit=per_docset_limit, guide_type=guide_type)
+                self._search_guides_single(
+                    query, spec, limit=per_docset_limit, guide_type=guide_type
+                )
             )
-        results.sort(key=lambda item: (item.score, item.title.lower(), item.relative_path.lower()))
+        results.sort(
+            key=lambda item: (
+                item.score,
+                item.title.lower(),
+                item.relative_path.lower(),
+            )
+        )
         return results[:limit]
 
     def answer_question(
@@ -189,9 +211,19 @@ class DocSearcher:
         """Search both API and guide indexes for a natural-language query."""
         limit_per_index = max(1, min(limit_per_index, MAX_SEARCH_LIMIT))
         return {
-            "api": self.search_api(query, limit=limit_per_index, engine=engine, version=version, docset=docset),
+            "api": self.search_api(
+                query,
+                limit=limit_per_index,
+                engine=engine,
+                version=version,
+                docset=docset,
+            ),
             "guide": self.search_guides(
-                query, limit=limit_per_index, engine=engine, version=version, docset=docset,
+                query,
+                limit=limit_per_index,
+                engine=engine,
+                version=version,
+                docset=docset,
             ),
         }
 
@@ -206,7 +238,9 @@ class DocSearcher:
         docset: str | None = None,
     ) -> Optional[SymbolReference]:
         """Look up a single API symbol by name, returning the best match."""
-        specs = self._resolve_indexed_docsets(engine=engine, version=version, docset=docset)
+        specs = self._resolve_indexed_docsets(
+            engine=engine, version=version, docset=docset
+        )
         candidates: list[tuple[int, SymbolReference]] = []
         for spec in specs:
             hit = self._symbol_lookup_single(symbol, spec)
@@ -215,7 +249,12 @@ class DocSearcher:
         if not candidates:
             return None
         candidates.sort(
-            key=lambda item: (item[0], len(item[1].relative_path), item[1].docset_label.lower(), item[1].title.lower())
+            key=lambda item: (
+                item[0],
+                len(item[1].relative_path),
+                item[1].docset_label.lower(),
+                item[1].title.lower(),
+            )
         )
         return candidates[0][1]
 
@@ -228,7 +267,9 @@ class DocSearcher:
         docset: str | None = None,
     ) -> Optional[dict]:
         """Retrieve a documentation page by relative path or substring."""
-        specs = self._resolve_indexed_docsets(engine=engine, version=version, docset=docset)
+        specs = self._resolve_indexed_docsets(
+            engine=engine, version=version, docset=docset
+        )
         candidates: list[tuple[int, dict]] = []
         for spec in specs:
             hit = self._doc_page_single(path_or_key, spec)
@@ -237,7 +278,11 @@ class DocSearcher:
         if not candidates:
             return None
         candidates.sort(
-            key=lambda item: (item[0], len(item[1]["ref"].relative_path), item[1]["ref"].docset_label.lower())
+            key=lambda item: (
+                item[0],
+                len(item[1]["ref"].relative_path),
+                item[1]["ref"].docset_label.lower(),
+            )
         )
         return candidates[0][1]
 
@@ -249,7 +294,9 @@ class DocSearcher:
         docset: str | None = None,
     ) -> dict:
         """Aggregate statistics across selected indexed docsets."""
-        specs = self._resolve_indexed_docsets(engine=engine, version=version, docset=docset)
+        specs = self._resolve_indexed_docsets(
+            engine=engine, version=version, docset=docset
+        )
 
         api_total = 0
         guide_total = 0
@@ -262,42 +309,56 @@ class DocSearcher:
         for spec in specs:
             conn = get_connection(spec.db_path, readonly=True)
             try:
-                api_pages = conn.execute("SELECT COUNT(*) FROM api_records").fetchone()[0]
-                guide_pages = conn.execute("SELECT COUNT(*) FROM guide_records").fetchone()[0]
+                api_pages = conn.execute("SELECT COUNT(*) FROM api_records").fetchone()[
+                    0
+                ]
+                guide_pages = conn.execute(
+                    "SELECT COUNT(*) FROM guide_records"
+                ).fetchone()[0]
                 api_total += api_pages
                 guide_total += guide_pages
 
                 unique_classes.update(
-                    row[0] for row in conn.execute(
+                    row[0]
+                    for row in conn.execute(
                         "SELECT DISTINCT class_name FROM api_records WHERE class_name != ''"
                     ).fetchall()
                 )
                 unique_namespaces.update(
-                    row[0] for row in conn.execute(
+                    row[0]
+                    for row in conn.execute(
                         "SELECT DISTINCT namespace FROM api_records WHERE namespace != ''"
                     ).fetchall()
                 )
                 member_breakdown.update(
-                    {row["member_type"]: row["c"] for row in conn.execute(
-                        "SELECT member_type, COUNT(*) AS c FROM api_records GROUP BY member_type"
-                    ).fetchall()}
+                    {
+                        row["member_type"]: row["c"]
+                        for row in conn.execute(
+                            "SELECT member_type, COUNT(*) AS c FROM api_records GROUP BY member_type"
+                        ).fetchall()
+                    }
                 )
                 guide_breakdown.update(
-                    {row["guide_type"]: row["c"] for row in conn.execute(
-                        "SELECT guide_type, COUNT(*) AS c FROM guide_records GROUP BY guide_type"
-                    ).fetchall()}
+                    {
+                        row["guide_type"]: row["c"]
+                        for row in conn.execute(
+                            "SELECT guide_type, COUNT(*) AS c FROM guide_records GROUP BY guide_type"
+                        ).fetchall()
+                    }
                 )
-                docset_rows.append({
-                    "key": spec.key,
-                    "label": spec.label,
-                    "engine": spec.engine,
-                    "version": spec.version,
-                    "docset": spec.docset,
-                    "api_pages": api_pages,
-                    "guide_pages": guide_pages,
-                    "docs_root": str(spec.docs_root),
-                    "db_path": str(spec.db_path),
-                })
+                docset_rows.append(
+                    {
+                        "key": spec.key,
+                        "label": spec.label,
+                        "engine": spec.engine,
+                        "version": spec.version,
+                        "docset": spec.docset,
+                        "api_pages": api_pages,
+                        "guide_pages": guide_pages,
+                        "docs_root": str(spec.docs_root),
+                        "db_path": str(spec.db_path),
+                    }
+                )
             finally:
                 conn.close()
 
@@ -320,7 +381,7 @@ class DocSearcher:
         engine: str | None,
         version: str | None,
         docset: str | None,
-) -> list[DocsetSpec]:
+    ) -> list[DocsetSpec]:
         """Select docsets that have an existing index database."""
         specs = select_docsets(engine=engine, version=version, docset=docset)
         if not specs:
@@ -376,7 +437,11 @@ class DocSearcher:
                 if row["id"] in seen:
                     continue
                 seen.add(row["id"])
-                results.append(_api_row_to_result(row, row["symbol_name"] or row["title"], -1000.0, spec))
+                results.append(
+                    _api_row_to_result(
+                        row, row["symbol_name"] or row["title"], -1000.0, spec
+                    )
+                )
 
             # Member-of match (e.g. query "Rotate" -> "Transform.Rotate")
             if len(results) < limit and "." not in query and "::" not in query:
@@ -398,15 +463,21 @@ class DocSearcher:
                     if row["id"] in seen:
                         continue
                     seen.add(row["id"])
-                    results.append(_api_row_to_result(row, row["symbol_name"], -500.0, spec))
+                    results.append(
+                        _api_row_to_result(row, row["symbol_name"], -500.0, spec)
+                    )
 
             # Full-text search fallback
             if len(results) < limit:
                 terms = _fts_terms(query)
                 if terms:
-                    fts_hits = self._fts_api(conn, spec, _fts_phrase(query), member_type, limit)
+                    fts_hits = self._fts_api(
+                        conn, spec, _fts_phrase(query), member_type, limit
+                    )
                     if not fts_hits:
-                        fts_hits = self._fts_api(conn, spec, _fts_or(terms), member_type, limit)
+                        fts_hits = self._fts_api(
+                            conn, spec, _fts_or(terms), member_type, limit
+                        )
                     for result in fts_hits:
                         if result.id in seen:
                             continue
@@ -444,7 +515,9 @@ class DocSearcher:
             rows = conn.execute(sql, (match_expr, *type_args, limit)).fetchall()
         except sqlite3.OperationalError:
             return []
-        return [_api_row_to_result(row, row["snippet"], row["score"], spec) for row in rows]
+        return [
+            _api_row_to_result(row, row["snippet"], row["score"], spec) for row in rows
+        ]
 
     # -- private: single-docset guide search ---------------------------------
 
@@ -479,15 +552,23 @@ class DocSearcher:
                 if row["id"] in seen:
                     continue
                 seen.add(row["id"])
-                results.append(_guide_row_to_result(row, row["summary"] or row["title"], -100.0, spec))
+                results.append(
+                    _guide_row_to_result(
+                        row, row["summary"] or row["title"], -100.0, spec
+                    )
+                )
 
             # Full-text search fallback
             if len(results) < limit:
                 terms = _fts_terms(query)
                 if terms:
-                    fts_hits = self._fts_guides(conn, spec, _fts_phrase(query), guide_type, limit)
+                    fts_hits = self._fts_guides(
+                        conn, spec, _fts_phrase(query), guide_type, limit
+                    )
                     if not fts_hits:
-                        fts_hits = self._fts_guides(conn, spec, _fts_or(terms), guide_type, limit)
+                        fts_hits = self._fts_guides(
+                            conn, spec, _fts_or(terms), guide_type, limit
+                        )
                     for result in fts_hits:
                         if result.id in seen:
                             continue
@@ -524,7 +605,10 @@ class DocSearcher:
             rows = conn.execute(sql, (match_expr, *type_args, limit)).fetchall()
         except sqlite3.OperationalError:
             return []
-        return [_guide_row_to_result(row, row["snippet"], row["score"], spec) for row in rows]
+        return [
+            _guide_row_to_result(row, row["snippet"], row["score"], spec)
+            for row in rows
+        ]
 
     # -- private: single-docset symbol lookup --------------------------------
 
@@ -632,7 +716,9 @@ class DocSearcher:
                     docset=spec.docset,
                     docset_label=spec.label,
                 )
-                priority = 0 if row["relative_path"].lower() == path_or_key.lower() else 1
+                priority = (
+                    0 if row["relative_path"].lower() == path_or_key.lower() else 1
+                )
                 return priority, {"category": category, "ref": ref}
             return None
         finally:
@@ -650,6 +736,7 @@ _default_searcher = DocSearcher()
 # Legacy function API (backward-compatible)
 # ---------------------------------------------------------------------------
 
+
 def search_api(
     query: str,
     limit: int = DEFAULT_SEARCH_LIMIT,
@@ -660,7 +747,14 @@ def search_api(
     docset: str | None = None,
 ) -> list[SearchResult]:
     """Search API/reference documentation (see :meth:`DocSearcher.search_api`)."""
-    return _default_searcher.search_api(query, limit=limit, member_type=member_type, engine=engine, version=version, docset=docset)
+    return _default_searcher.search_api(
+        query,
+        limit=limit,
+        member_type=member_type,
+        engine=engine,
+        version=version,
+        docset=docset,
+    )
 
 
 def search_guides(
@@ -673,7 +767,14 @@ def search_guides(
     docset: str | None = None,
 ) -> list[SearchResult]:
     """Search guide/conceptual documentation (see :meth:`DocSearcher.search_guides`)."""
-    return _default_searcher.search_guides(query, limit=limit, guide_type=guide_type, engine=engine, version=version, docset=docset)
+    return _default_searcher.search_guides(
+        query,
+        limit=limit,
+        guide_type=guide_type,
+        engine=engine,
+        version=version,
+        docset=docset,
+    )
 
 
 def answer_question(
@@ -685,7 +786,13 @@ def answer_question(
     docset: str | None = None,
 ) -> dict[str, list[SearchResult]]:
     """Search both API and guide indexes (see :meth:`DocSearcher.answer_question`)."""
-    return _default_searcher.answer_question(query, limit_per_index=limit_per_index, engine=engine, version=version, docset=docset)
+    return _default_searcher.answer_question(
+        query,
+        limit_per_index=limit_per_index,
+        engine=engine,
+        version=version,
+        docset=docset,
+    )
 
 
 def get_symbol_reference(
@@ -696,7 +803,9 @@ def get_symbol_reference(
     docset: str | None = None,
 ) -> Optional[SymbolReference]:
     """Resolve a single API symbol (see :meth:`DocSearcher.get_symbol`)."""
-    return _default_searcher.get_symbol(symbol, engine=engine, version=version, docset=docset)
+    return _default_searcher.get_symbol(
+        symbol, engine=engine, version=version, docset=docset
+    )
 
 
 def get_doc_page(
@@ -707,7 +816,9 @@ def get_doc_page(
     docset: str | None = None,
 ) -> Optional[dict]:
     """Retrieve a doc page by path (see :meth:`DocSearcher.get_doc_page`)."""
-    return _default_searcher.get_doc_page(path_or_key, engine=engine, version=version, docset=docset)
+    return _default_searcher.get_doc_page(
+        path_or_key, engine=engine, version=version, docset=docset
+    )
 
 
 def get_stats(

@@ -1,25 +1,28 @@
 [project]
-name = "unity-mcp"
+name = "game-engine-mcp"
 version = "0.3.0"
-description = "Local MCP server for querying offline game engine documentation via SQLite FTS5 + vector search"
+description = "Local MCP server for offline game engine documentation with hybrid keyword + semantic search, cross-engine translation, and structural navigation"
 readme = "README.md"
 requires-python = ">=3.11"
+license = "MIT"
 dependencies = [
     "beautifulsoup4>=4.12",
+    "fastembed>=0.4",
     "lancedb>=0.6",
     "lxml>=5.0",
     "mcp>=1.0",
     "numpy>=1.26",
     "pyarrow>=14.0",
     "pyyaml>=6.0",
-    "regex>=2024.0",
-    "sentence-transformers>=3.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
 ]
+
+[project.scripts]
+game-engine-mcp = "src.server:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -30,3 +33,8 @@ packages = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.11",
+]
