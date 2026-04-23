@@ -1,4 +1,9 @@
-"""Parser adapters for different documentation formats."""
+"""Parser adapters for different documentation formats.
+
+Each parser takes an HTML file path and a docs root, and returns one or
+more :class:`~src.models.ApiRecord` / :class:`~src.models.GuideRecord`
+instances.
+"""
 
 from .godot import parse_godot_html
 from .unreal import parse_blueprint_html, parse_unreal_cpp_html

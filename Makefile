@@ -30,6 +30,9 @@ index:
 reindex:
 	uv run python scripts/build_index.py -v
 
+vecindex:
+	uv run python scripts/build_index.py --vectors -v
+
 logs:
 	docker logs -f $(IMAGE_NAME)
 

@@ -1,48 +1,78 @@
-"""Project configuration and path constants."""
+"""Project paths and tuning constants.
+
+Everything in this module is a plain constant so other modules can do a
+simple ``from .config import PROJECT_ROOT`` without worrying about
+import-order side-effects.
+"""
 
 from pathlib import Path
 
 
 def _find_project_root() -> Path:
-    """Find the project root by walking up from this file and falling back to cwd.
+    """Locate the project root (directory containing ``pyproject.toml``).
 
-    When installed as a package (e.g. in Docker via ``uv sync``), __file__ lives
-    inside site-packages so parent-based resolution breaks.  We detect that by
-    checking for ``pyproject.toml`` and fall back to cwd when needed.
+    Resolution order:
+      1. Parent of this file's directory (works in normal ``src/`` layouts).
+      2. Current working directory (works inside Docker containers).
+      3. Two levels up from this file (legacy fallback).
     """
     candidate = Path(__file__).resolve().parents[1]
     if (candidate / "pyproject.toml").is_file():
         return candidate
-    # Fallback: assume cwd is the project root (true in Docker with WORKDIR /app)
     cwd = Path.cwd()
     if (cwd / "pyproject.toml").is_file():
         return cwd
-    # Last resort: use the original heuristic
     return Path(__file__).resolve().parents[2]
 
 
-# Project root (where pyproject.toml lives)
-PROJECT_ROOT = _find_project_root()
+# -- Paths -----------------------------------------------------------------
 
-# Source manifests and generated data
-DOCSETS_MANIFEST_PATH = PROJECT_ROOT / "docsets.json"
-DATA_DIR = PROJECT_ROOT / "data"
+PROJECT_ROOT: Path = _find_project_root()
+"""Repository / package root (contains ``pyproject.toml``)."""
 
-# Supported HTML extensions
-HTML_EXTENSIONS = {".html", ".htm"}
+DOCSETS_MANIFEST_PATH: Path = PROJECT_ROOT / "docsets.json"
+"""Default JSON manifest shipped with the repo."""
 
-# Common file names to ignore across docsets
-SKIP_FILENAMES = {"30_search.html", "docdata.html"}
+DATA_DIR: Path = PROJECT_ROOT / "data"
+"""Directory where built SQLite databases are stored."""
 
-# Unity-specific asset folders to skip
-UNITY_SKIP_DIRS = {"StaticFiles", "StaticFilesManual", "uploads"}
+# -- File-discovery constants -----------------------------------------------
 
-# Max content length to store per page (characters)
-MAX_CONTENT_LENGTH = 100_000
+HTML_EXTENSIONS: frozenset[str] = frozenset({".html", ".htm"})
+"""File extensions considered indexable HTML."""
 
-# Default search result limit
-DEFAULT_SEARCH_LIMIT = 10
-MAX_SEARCH_LIMIT = 50
+SKIP_FILENAMES: frozenset[str] = frozenset({"30_search.html", "docdata.html"})
+"""Filenames to skip regardless of extension."""
 
-# Schema version written to each SQLite metadata table
-DB_SCHEMA_VERSION = "2"
+UNITY_SKIP_DIRS: frozenset[str] = frozenset({"StaticFiles", "StaticFilesManual", "uploads"})
+"""Unity-specific directories to skip during HTML discovery."""
+
+# -- Limits -----------------------------------------------------------------
+
+MAX_CONTENT_LENGTH: int = 100_000
+"""Maximum characters of page content stored per record."""
+
+DEFAULT_SEARCH_LIMIT: int = 10
+"""Default number of search results returned."""
+
+MAX_SEARCH_LIMIT: int = 50
+"""Hard upper-bound on search result count."""
+
+# -- Vector search ---------------------------------------------------------
+
+VECTOR_DIM: int = 384
+"""Embedding dimension (all-MiniLM-L6-v2 produces 384-dim vectors)."""
+
+VECTOR_MODEL_NAME: str = "all-MiniLM-L6-v2"
+"""Sentence-transformers model used for embedding generation."""
+
+VECTOR_DB_DIR: Path = DATA_DIR / "vectors"
+"""Directory where LanceDB vector stores are saved."""
+
+EMBEDDING_BATCH_SIZE: int = 64
+"""Number of records to embed in a single batch."""
+
+# -- Schema -----------------------------------------------------------------
+
+DB_SCHEMA_VERSION: str = "3"
+"""Schema version string written into every SQLite ``metadata`` table."""

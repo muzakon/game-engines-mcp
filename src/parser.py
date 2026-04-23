@@ -1,4 +1,12 @@
-"""Parser dispatch and HTML discovery."""
+"""Parser dispatch and HTML file discovery.
+
+This module provides two public helpers:
+
+* :func:`discover_html_files` – recursively find all indexable HTML files
+  under a docset's documentation root.
+* :func:`parse_html_records` – dispatch a single HTML file to the correct
+  parser based on the docset's ``parser_kind``.
+"""
 
 from __future__ import annotations
 

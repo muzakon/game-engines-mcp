@@ -1,4 +1,10 @@
-"""Unreal Engine offline HTML parsers."""
+"""Unreal Engine offline HTML parsers.
+
+Two public entry points:
+
+* :func:`parse_unreal_cpp_html` – C++ API reference pages.
+* :func:`parse_blueprint_html` – Blueprint visual-scripting node pages.
+"""
 
 from __future__ import annotations
 

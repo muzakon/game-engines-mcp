@@ -1,4 +1,15 @@
-"""Data models for indexed documentation records."""
+"""Data models for indexed documentation records and search results.
+
+Three groups of models live here:
+
+* **Index records** – ``ApiRecord`` and ``GuideRecord`` map 1:1 to rows in
+  the ``api_records`` / ``guide_records`` SQLite tables.
+* **Search results** – ``SearchResult`` is the flat DTO returned by search
+  helpers, carrying both data and a BM25-style ``score``.
+* **Reference models** – ``SymbolReference`` and ``GuideReference`` enrich
+  a database row with engine metadata and a short content excerpt, ready
+  for formatting by ``utils.py``.
+"""
 
 from __future__ import annotations
 
@@ -6,21 +17,28 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 
-# --- Indexed records (one per row in their respective tables) ---
+# ---------------------------------------------------------------------------
+# Index records (one per row in their respective tables)
+# ---------------------------------------------------------------------------
 
 @dataclass
 class ApiRecord:
-    """A single indexed API / symbol page."""
+    """A single indexed API / symbol page.
+
+    Fields correspond to columns in the ``api_records`` table.  JSON-prefixed
+    fields (``parameters_json``, ``inheritance_json``, etc.) store
+    JSON-encoded arrays.
+    """
 
     id: Optional[int] = None
     title: str = ""
     relative_path: str = ""
-    symbol_name: str = ""        # e.g. "Transform.Rotate"
-    class_name: str = ""         # e.g. "Transform"
-    namespace: str = ""          # e.g. "UnityEngine"
-    member_type: str = ""        # class | method | property | module | blueprint_node | ...
+    symbol_name: str = ""
+    class_name: str = ""
+    namespace: str = ""
+    member_type: str = ""
     signature: str = ""
-    parameters_json: str = ""    # JSON array of {name, description}
+    parameters_json: str = ""
     returns_text: str = ""
     summary: str = ""
     remarks: str = ""
@@ -43,22 +61,29 @@ class GuideRecord:
     id: Optional[int] = None
     title: str = ""
     relative_path: str = ""
-    guide_type: str = ""          # manual | tutorial | overview | reference | quickstart | general
+    guide_type: str = ""
     topic_path: str = ""
     summary: str = ""
     content_text: str = ""
-    key_topics_json: str = ""     # JSON array of section/heading topics
+    key_topics_json: str = ""
     source_html_path: str = ""
 
 
-# --- Search result containers ---
+# ---------------------------------------------------------------------------
+# Search result containers
+# ---------------------------------------------------------------------------
 
 @dataclass
 class SearchResult:
-    """A single search hit (API or guide)."""
+    """A single search hit returned by the search helpers.
+
+    ``category`` is either ``"api"`` or ``"guide"``.  Fields that only apply
+    to one category (e.g. ``symbol_name`` for API, ``guide_type`` for guides)
+    are empty strings when not applicable.
+    """
 
     id: int
-    category: str                 # "api" | "guide"
+    category: str
     title: str
     relative_path: str
     snippet: str
@@ -67,20 +92,26 @@ class SearchResult:
     version: str = ""
     docset: str = ""
     docset_label: str = ""
-    # API-only fields (empty for guides)
     symbol_name: str = ""
     class_name: str = ""
     namespace: str = ""
     member_type: str = ""
     module_name: str = ""
     topic_path: str = ""
-    # Guide-only field (empty for API)
     guide_type: str = ""
 
 
+# ---------------------------------------------------------------------------
+# Reference models (enriched row + engine metadata)
+# ---------------------------------------------------------------------------
+
 @dataclass
 class SymbolReference:
-    """Structured reference for a single API symbol lookup."""
+    """Structured reference for a single API symbol lookup.
+
+    Construct via :meth:`from_row` which trims ``content_text`` into
+    ``content_excerpt``.
+    """
 
     id: int
     title: str
@@ -115,6 +146,7 @@ class SymbolReference:
         excerpt_len: int = 1500,
         **metadata: str,
     ) -> "SymbolReference":
+        """Build from a raw DB row dict, attaching engine metadata."""
         content = row.get("content_text", "") or ""
         return cls(
             id=row["id"],
@@ -169,6 +201,7 @@ class GuideReference:
         excerpt_len: int = 2000,
         **metadata: str,
     ) -> "GuideReference":
+        """Build from a raw DB row dict, attaching engine metadata."""
         content = row.get("content_text", "") or ""
         return cls(
             id=row["id"],

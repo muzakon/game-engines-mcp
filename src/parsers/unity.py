@@ -1,4 +1,8 @@
-"""Unity offline HTML parser."""
+"""Unity offline HTML parser.
+
+Extracts API records (classes, methods, properties) from Unity
+ScriptReference pages and guide records from Manual pages.
+"""
 
 from __future__ import annotations
 

@@ -11,5 +11,11 @@ CLAUDE.md
 .env
 .env.local
 
+# LanceDB vector index (generated data)
+data/vectors/
+
 # config.yaml may contain user-specific settings; commit a .example instead
 # config.yaml
+
+# User-specific engine preferences
+engines.local.yaml

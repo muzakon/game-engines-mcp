@@ -1,4 +1,17 @@
-"""SQLite schema and connection management for engine/version/docset indexes."""
+"""SQLite schema, connection management, and record upserts.
+
+The public API is the :class:`Database` class which wraps a single
+``.db`` file.  Module-level helper functions are kept for backward
+compatibility with scripts and tests.
+
+Schema overview
+---------------
+* **metadata** – key/value store (schema version, engine info, …).
+* **api_records** – classes, methods, properties, Blueprint nodes, …
+  mirrored into the ``api_fts`` FTS5 virtual table.
+* **guide_records** – tutorials, manuals, overviews, …
+  mirrored into the ``guide_fts`` FTS5 virtual table.
+"""
 
 from __future__ import annotations
 
@@ -9,6 +22,10 @@ from .config import DB_SCHEMA_VERSION, MAX_CONTENT_LENGTH
 from .docsets import DocsetSpec
 from .models import ApiRecord, GuideRecord
 
+
+# ---------------------------------------------------------------------------
+# Full DDL (tables, indexes, FTS5 virtual tables, triggers)
+# ---------------------------------------------------------------------------
 
 _SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS metadata (
@@ -156,8 +173,96 @@ END;
 """
 
 
+# ---------------------------------------------------------------------------
+# Database class
+# ---------------------------------------------------------------------------
+
+class Database:
+    """Manage a single docset SQLite database.
+
+    Handles schema creation, migration, and record upserts.
+
+    Example::
+
+        db = Database.open(Path("data/unreal/4.26/cpp-api.db"))
+        db.init(docset_spec)
+        db.upsert_api(record)
+        db.close()
+    """
+
+    def __init__(self, conn: sqlite3.Connection) -> None:
+        self._conn = conn
+
+    # -- construction helpers -----------------------------------------------
+
+    @classmethod
+    def open(cls, db_path: Path, *, readonly: bool = False) -> "Database":
+        """Open (or create) a database file and return a :class:`Database`."""
+        return cls(get_connection(db_path, readonly=readonly))
+
+    # -- schema management --------------------------------------------------
+
+    def init(self, docset: DocsetSpec | None = None) -> None:
+        """Create tables and write metadata.  Safe to call on an existing DB."""
+        init_db(self._conn, docset=docset)
+
+    def rebuild(self, docset: DocsetSpec | None = None) -> None:
+        """Drop all tables and recreate the schema from scratch."""
+        rebuild_db(self._conn, docset=docset)
+
+    def optimize_fts(self) -> None:
+        """Run FTS5 optimize (merge segments) for better query performance."""
+        try:
+            self._conn.execute("INSERT INTO api_fts(api_fts) VALUES('optimize')")
+            self._conn.execute("INSERT INTO guide_fts(guide_fts) VALUES('optimize')")
+            self._conn.commit()
+        except Exception as exc:
+            logging.getLogger(__name__).warning("FTS optimize failed: %s", exc)
+
+    # -- record upserts -----------------------------------------------------
+
+    def upsert_api(self, rec: ApiRecord) -> int:
+        """Insert or update an API record.  Returns the row id."""
+        return upsert_api_record(self._conn, rec)
+
+    def upsert_guide(self, rec: GuideRecord) -> int:
+        """Insert or update a guide record.  Returns the row id."""
+        return upsert_guide_record(self._conn, rec)
+
+    # -- metadata -----------------------------------------------------------
+
+    def write_metadata(self, metadata: dict[str, str]) -> None:
+        """Upsert key/value pairs into the ``metadata`` table."""
+        write_metadata(self._conn, metadata)
+
+    def read_metadata(self) -> dict[str, str]:
+        """Return all metadata as a plain dict."""
+        return read_metadata(self._conn)
+
+    # -- transaction helpers -------------------------------------------------
+
+    def commit(self) -> None:
+        """Commit the current transaction."""
+        self._conn.commit()
+
+    def close(self) -> None:
+        """Close the underlying SQLite connection."""
+        self._conn.close()
+
+    # -- direct connection access -------------------------------------------
+
+    @property
+    def conn(self) -> sqlite3.Connection:
+        """Raw SQLite connection for custom queries."""
+        return self._conn
+
+
+# ---------------------------------------------------------------------------
+# Low-level helpers (used by Database class and legacy callers)
+# ---------------------------------------------------------------------------
+
 def get_connection(db_path: Path, readonly: bool = False) -> sqlite3.Connection:
-    """Open a SQLite connection."""
+    """Open a SQLite connection with WAL mode and row factory enabled."""
 
     if readonly and not db_path.exists():
         raise FileNotFoundError(db_path)
@@ -178,6 +283,7 @@ def get_connection(db_path: Path, readonly: bool = False) -> sqlite3.Connection:
 
 
 def write_metadata(conn: sqlite3.Connection, metadata: dict[str, str]) -> None:
+    """Upsert key/value pairs into the ``metadata`` table."""
     conn.executemany(
         """
         INSERT INTO metadata(key, value) VALUES(?, ?)
@@ -188,6 +294,7 @@ def write_metadata(conn: sqlite3.Connection, metadata: dict[str, str]) -> None:
 
 
 def read_metadata(conn: sqlite3.Connection) -> dict[str, str]:
+    """Return all metadata rows as ``{key: value}``."""
     return {
         row["key"]: row["value"]
         for row in conn.execute("SELECT key, value FROM metadata").fetchall()
@@ -195,6 +302,7 @@ def read_metadata(conn: sqlite3.Connection) -> dict[str, str]:
 
 
 def init_db(conn: sqlite3.Connection, docset: DocsetSpec | None = None) -> None:
+    """Create tables and write default metadata."""
     conn.executescript(_SCHEMA_SQL)
     metadata = {"schema_version": DB_SCHEMA_VERSION}
     if docset:
@@ -214,8 +322,7 @@ def init_db(conn: sqlite3.Connection, docset: DocsetSpec | None = None) -> None:
 
 
 def rebuild_db(conn: sqlite3.Connection, docset: DocsetSpec | None = None) -> None:
-    """Drop everything and recreate. Also clears any legacy single-table schema."""
-
+    """Drop everything and recreate.  Also clears legacy single-table schema."""
     conn.executescript(
         """
         DROP TRIGGER IF EXISTS api_records_ai;
@@ -241,6 +348,7 @@ def rebuild_db(conn: sqlite3.Connection, docset: DocsetSpec | None = None) -> No
 
 
 def upsert_api_record(conn: sqlite3.Connection, rec: ApiRecord) -> int:
+    """Insert or update an API record.  Returns the row id."""
     content_text = rec.content_text[:MAX_CONTENT_LENGTH]
     row = conn.execute(
         "SELECT id FROM api_records WHERE relative_path = ?",
@@ -300,6 +408,7 @@ def upsert_api_record(conn: sqlite3.Connection, rec: ApiRecord) -> int:
 
 
 def upsert_guide_record(conn: sqlite3.Connection, rec: GuideRecord) -> int:
+    """Insert or update a guide record.  Returns the row id."""
     content_text = rec.content_text[:MAX_CONTENT_LENGTH]
     row = conn.execute(
         "SELECT id FROM guide_records WHERE relative_path = ?",

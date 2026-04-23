@@ -1,4 +1,13 @@
-"""Docset registry and manifest helpers."""
+"""Docset registry, manifest loading, and selection helpers.
+
+A *docset* (documentation set) is identified by the triple
+``engine:version:docset`` (e.g. ``unreal:4.26:cpp-api``).  Docset
+specifications can come from three sources, in priority order:
+
+1. ``engines.local.yaml`` – user-specific engine preferences.
+2. A custom JSON manifest path (via argument or ``UNITY_MCP_DOCSETS_MANIFEST``).
+3. ``docsets.json`` – the default manifest shipped with the repo.
+"""
 
 from __future__ import annotations
 
@@ -33,15 +42,18 @@ _UNREAL_DOCSET_PARSER_OVERRIDES: dict[str, str] = {
 }
 
 _CONFIG_YAML_PATH = PROJECT_ROOT / "config.yaml"
+_ENGINES_LOCAL_PATH = PROJECT_ROOT / "engines.local.yaml"
 
 
 def _default_parser_kind(engine: str, docset: str) -> str:
+    """Return the parser kind for an engine/docset combination."""
     if engine == "unreal":
         return _UNREAL_DOCSET_PARSER_OVERRIDES.get(docset, "unreal_cpp_html")
     return _DEFAULT_PARSER_KINDS.get(engine, "unknown")
 
 
 def _normalize(value: str | None) -> str | None:
+    """Lowercase and strip whitespace, returning *None* for empty strings."""
     if value is None:
         return None
     cleaned = value.strip()
@@ -49,6 +61,7 @@ def _normalize(value: str | None) -> str | None:
 
 
 def _resolve_path(value: str | None, fallback: Path) -> Path:
+    """Resolve a path string relative to ``PROJECT_ROOT`` if not absolute."""
     if not value:
         return fallback
     path = Path(value)
@@ -105,12 +118,14 @@ class DocsetSpec:
 
 
 def default_manifest_path() -> Path:
+    """Return the default manifest path, honouring the env override."""
     raw = os.environ.get("UNITY_MCP_DOCSETS_MANIFEST")
     return Path(raw) if raw else DOCSETS_MANIFEST_PATH
 
 
 @lru_cache(maxsize=8)
 def _load_manifest_cached(manifest_path_str: str) -> tuple[DocsetSpec, ...]:
+    """Load and cache a JSON manifest file."""
     manifest_path = Path(manifest_path_str)
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not isinstance(payload, list):
@@ -143,10 +158,11 @@ def _load_manifest_cached(manifest_path_str: str) -> tuple[DocsetSpec, ...]:
 
 
 def _load_from_config_yaml() -> tuple[DocsetSpec, ...] | None:
-    if not _CONFIG_YAML_PATH.exists():
+    """Load docsets from ``engines.local.yaml``, or *None* if it doesn't exist."""
+    if not _ENGINES_LOCAL_PATH.exists():
         return None
 
-    with open(_CONFIG_YAML_PATH, "r", encoding="utf-8") as f:
+    with open(_ENGINES_LOCAL_PATH, "r", encoding="utf-8") as f:
         raw = yaml.safe_load(f)
 
     if not raw or "engines" not in raw:
@@ -171,21 +187,26 @@ def _load_from_config_yaml() -> tuple[DocsetSpec, ...] | None:
             )
             docsets.append(spec)
 
-    logger.info("Loaded %d docset(s) from config.yaml", len(docsets))
+    logger.info("Loaded %d docset(s) from engines.local.yaml", len(docsets))
     return tuple(sorted(docsets, key=lambda spec: (spec.engine, spec.version, spec.docset)))
 
 
 def clear_docset_cache() -> None:
+    """Invalidate the cached manifest (used between tests)."""
     _load_manifest_cached.cache_clear()
 
 
 def get_registered_docsets(manifest_path: Path | None = None) -> tuple[DocsetSpec, ...]:
+    """Return all registered docsets using the standard resolution order.
+
+    Priority: custom manifest > ``engines.local.yaml`` > ``docsets.json``.
+    """
     # If a custom manifest is explicitly requested (via arg or env var), use that
     explicit = manifest_path or os.environ.get("UNITY_MCP_DOCSETS_MANIFEST")
     if explicit:
         return _load_manifest_cached(str(Path(explicit).resolve()))
 
-    # Otherwise prefer config.yaml when it exists
+    # Otherwise prefer engines.local.yaml when it exists
     from_config = _load_from_config_yaml()
     if from_config is not None:
         return from_config
@@ -196,6 +217,7 @@ def get_registered_docsets(manifest_path: Path | None = None) -> tuple[DocsetSpe
 
 
 def _matches(spec: DocsetSpec, engine: str | None, version: str | None, docset: str | None) -> bool:
+    """Check whether a spec matches the given filter criteria."""
     if engine and spec.engine != engine:
         return False
     if version and spec.version.lower() != version.lower():
@@ -272,10 +294,12 @@ def get_docset(
 
 
 def describe_docset(spec: DocsetSpec) -> str:
+    """Return a human-readable label for a docset."""
     return f"{spec.label} ({spec.key})"
 
 
 def docset_status_rows(docsets: Iterable[DocsetSpec]) -> list[dict[str, str | bool]]:
+    """Convert docset specs into flat status dicts for formatting."""
     rows: list[dict[str, str | bool]] = []
     for spec in docsets:
         rows.append(

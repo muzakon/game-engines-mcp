@@ -1,14 +1,19 @@
 [project]
 name = "unity-mcp"
-version = "0.2.0"
-description = "Local MCP server for querying offline game engine documentation via SQLite FTS5"
+version = "0.3.0"
+description = "Local MCP server for querying offline game engine documentation via SQLite FTS5 + vector search"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "beautifulsoup4>=4.12",
+    "lancedb>=0.6",
     "lxml>=5.0",
     "mcp>=1.0",
+    "numpy>=1.26",
+    "pyarrow>=14.0",
     "pyyaml>=6.0",
+    "regex>=2024.0",
+    "sentence-transformers>=3.0",
 ]
 
 [project.optional-dependencies]

@@ -1,4 +1,9 @@
-"""Godot Engine offline HTML parser."""
+"""Godot Engine offline HTML parser.
+
+Parses Godot's Sphinx-generated class reference pages (under
+``classes/class_*.html``) into one class-level :class:`~src.models.ApiRecord`
+plus per-member records.  Non-class pages are parsed as guide records.
+"""
 
 from __future__ import annotations
 
