@@ -54,7 +54,7 @@ def list_documentation_targets(
 @mcp.tool()
 def search_api_reference(
     query: str,
-    engine: str = "unity",
+    engine: str | None = None,
     version: str | None = None,
     docset: str | None = None,
     limit: int = 10,
@@ -92,7 +92,7 @@ def search_api_reference(
 @mcp.tool()
 def search_engine_guides(
     query: str,
-    engine: str = "unity",
+    engine: str | None = None,
     version: str | None = None,
     docset: str | None = None,
     limit: int = 10,
@@ -123,7 +123,7 @@ def search_engine_guides(
 @mcp.tool()
 def get_engine_symbol_reference(
     symbol: str,
-    engine: str = "unity",
+    engine: str | None = None,
     version: str | None = None,
     docset: str | None = None,
 ) -> str:
@@ -151,7 +151,7 @@ def get_engine_symbol_reference(
 @mcp.tool()
 def get_engine_doc_page(
     path_or_key: str,
-    engine: str = "unity",
+    engine: str | None = None,
     version: str | None = None,
     docset: str | None = None,
 ) -> str:
@@ -178,7 +178,7 @@ def get_engine_doc_page(
 @mcp.tool()
 def answer_engine_question(
     query: str,
-    engine: str = "unity",
+    engine: str | None = None,
     version: str | None = None,
     docset: str | None = None,
     limit_per_index: int = 5,
@@ -302,6 +302,15 @@ def main() -> None:
         stream=sys.stderr,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
+
+    # Auto-download missing databases from GitHub Releases
+    try:
+        from .downloader import ensure_databases
+        ensure_databases()
+    except FileNotFoundError:
+        logger.warning("No config.yaml found — skipping auto-download")
+    except Exception as exc:
+        logger.warning("Auto-download failed: %s", exc)
 
     transport = os.environ.get("MCP_TRANSPORT", "streamable-http")
     if "--stdio" in sys.argv:

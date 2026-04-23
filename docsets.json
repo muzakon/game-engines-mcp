@@ -12,12 +12,12 @@
   },
   {
     "engine": "unity",
-    "version": "current",
+    "version": "6000.4.3f1",
     "docset": "reference",
-    "label": "Unity Reference",
-    "description": "Offline Unity Manual and ScriptReference HTML documentation.",
-    "docs_root": "docs/unity/current/reference",
-    "db_path": "data/unity/current/reference.db",
+    "label": "Unity 6000.4.3f1 Reference",
+    "description": "Offline Unity 6000.4.3f1 Manual and ScriptReference HTML documentation.",
+    "docs_root": "docs/unity/6000.4.3f1/reference",
+    "db_path": "data/unity/6000.4.3f1/reference.db",
     "parser_kind": "unity_html",
     "skip_dirs": ["StaticFiles", "StaticFilesManual", "uploads"]
   },

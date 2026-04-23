@@ -24,11 +24,11 @@ from src.search import (
 def registered_indexes(tmp_path, monkeypatch):
     unity_spec = DocsetSpec(
         engine="unity",
-        version="current",
+        version="6000.4.3f1",
         docset="reference",
-        label="Unity Reference",
+        label="Unity 6000.4.3f1 Reference",
         docs_root=tmp_path / "Documentation",
-        db_path=tmp_path / "data" / "unity" / "current" / "reference.db",
+        db_path=tmp_path / "data" / "unity" / "6000.4.3f1" / "reference.db",
         parser_kind="unity_html",
     )
     unreal_cpp_spec = DocsetSpec(
@@ -316,7 +316,7 @@ def registered_indexes(tmp_path, monkeypatch):
 
 
 class TestSearchApi:
-    def test_defaults_to_unity(self, registered_indexes):
+    def test_search_without_filters_uses_registered_docsets(self, registered_indexes):
         results = search_api("Transform")
         assert results
         assert results[0].engine == "unity"

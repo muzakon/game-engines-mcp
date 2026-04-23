@@ -118,7 +118,6 @@ def build_indexes(
         version=version,
         docset=docset,
         available_only=available_only,
-        default_to_unity=False,
     )
     if not specs:
         raise ValueError("No matching docsets were found to index.")

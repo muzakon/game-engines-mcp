@@ -18,7 +18,7 @@ from src.utils import format_docset_status
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build documentation indexes")
     parser.add_argument("--engine", help="Engine name, e.g. unity or unreal")
-    parser.add_argument("--version", help="Engine version, e.g. current or 4.26")
+    parser.add_argument("--version", help="Engine version, e.g. 6000.4.3f1 or 4.26")
     parser.add_argument("--docset", help="Docset name, e.g. reference, cpp-api, blueprint-api")
     parser.add_argument("--all", action="store_true", help="Build all matching registered docsets")
     parser.add_argument("--list-docsets", action="store_true", help="List registered docsets and exit")
@@ -38,11 +38,7 @@ def main() -> None:
         return
 
     if args.docs_root or args.db_path:
-        spec = get_docset(
-            engine=args.engine or "unity",
-            version=args.version,
-            docset=args.docset,
-        )
+        spec = get_docset(engine=args.engine, version=args.version, docset=args.docset)
         stats = build_index(
             spec,
             docs_root=args.docs_root,
@@ -58,8 +54,7 @@ def main() -> None:
             rebuild=not args.no_rebuild,
         )
     else:
-        spec = get_docset(engine="unity", version="current", docset="reference")
-        rows = [build_index(spec, rebuild=not args.no_rebuild)]
+        rows = build_indexes(rebuild=not args.no_rebuild)
 
     total_api = sum(row["api_indexed"] for row in rows)
     total_guides = sum(row["guide_indexed"] for row in rows)

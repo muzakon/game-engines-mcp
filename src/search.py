@@ -8,7 +8,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Optional
 
-from .config import DEFAULT_ENGINE, DEFAULT_SEARCH_LIMIT, MAX_SEARCH_LIMIT
+from .config import DEFAULT_SEARCH_LIMIT, MAX_SEARCH_LIMIT
 from .db import get_connection
 from .docsets import DocsetSpec, select_docsets
 from .models import GuideReference, SearchResult, SymbolReference
@@ -48,13 +48,11 @@ def _resolve_indexed_docsets(
     engine: str | None,
     version: str | None,
     docset: str | None,
-    default_to_unity: bool = True,
 ) -> list[DocsetSpec]:
     specs = select_docsets(
         engine=engine,
         version=version,
         docset=docset,
-        default_to_unity=default_to_unity,
     )
     if not specs:
         raise ValueError("No matching documentation targets were found.")
@@ -307,7 +305,7 @@ def search_api(
     limit: int = DEFAULT_SEARCH_LIMIT,
     member_type: Optional[str] = None,
     *,
-    engine: str = DEFAULT_ENGINE,
+    engine: str | None = None,
     version: str | None = None,
     docset: str | None = None,
 ) -> list[SearchResult]:
@@ -329,7 +327,7 @@ def search_guides(
     limit: int = DEFAULT_SEARCH_LIMIT,
     guide_type: Optional[str] = None,
     *,
-    engine: str = DEFAULT_ENGINE,
+    engine: str | None = None,
     version: str | None = None,
     docset: str | None = None,
 ) -> list[SearchResult]:
@@ -350,7 +348,7 @@ def answer_question(
     query: str,
     limit_per_index: int = 5,
     *,
-    engine: str = DEFAULT_ENGINE,
+    engine: str | None = None,
     version: str | None = None,
     docset: str | None = None,
 ) -> dict[str, list[SearchResult]]:
@@ -441,7 +439,7 @@ def _symbol_reference_single(
 def get_symbol_reference(
     symbol: str,
     *,
-    engine: str = DEFAULT_ENGINE,
+    engine: str | None = None,
     version: str | None = None,
     docset: str | None = None,
 ) -> Optional[SymbolReference]:
@@ -502,7 +500,7 @@ def _doc_page_single(path_or_key: str, spec: DocsetSpec) -> tuple[int, dict] | N
 def get_doc_page(
     path_or_key: str,
     *,
-    engine: str = DEFAULT_ENGINE,
+    engine: str | None = None,
     version: str | None = None,
     docset: str | None = None,
 ) -> Optional[dict]:
@@ -534,7 +532,6 @@ def get_stats(
         engine=engine,
         version=version,
         docset=docset,
-        default_to_unity=not any([engine, version, docset]),
     )
 
     api_total = 0

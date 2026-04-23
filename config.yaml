@@ -1,0 +1,24 @@
+# game-engine-mcp configuration
+# Define which engine docsets you need. Pre-built indexes are downloaded
+# from GitHub Releases on first run if they don't exist locally.
+
+release:
+  owner: muzakon
+  repo: game-engines-mcp
+
+engines:
+  - engine: godot
+    version: "4.6"
+    docsets:
+      - reference
+
+  - engine: unity
+    version: 6000.4.3f1
+    docsets:
+      - reference
+
+  - engine: unreal
+    version: "4.26"
+    docsets:
+      - cpp-api
+      - blueprint-api

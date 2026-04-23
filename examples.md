@@ -76,7 +76,7 @@ If you later publish this project as a package, the config can look like this:
 ### Unity examples
 
 - `Use the docs MCP server to find the Unity documentation for Transform.Rotate and summarize the signature and parameters.`
-- `Use Unity current reference docs and explain Rigidbody.velocity.`
+- `Use Unity 6000.4.3f1 reference docs and explain Rigidbody.velocity.`
 - `Search Unity docs for how to rotate a GameObject and summarize the best approach.`
 - `Find the exact Unity doc page for Quaternion.LookRotation and explain when to use it.`
 
@@ -120,7 +120,7 @@ Give the exact symbol or node name:
 
 Say the engine and version clearly:
 
-- `Use Unity current docs`
+- `Use Unity 6000.4.3f1 docs`
 - `Use Unreal 4.26 cpp-api docs`
 - `Use Unreal 4.26 blueprint-api docs`
 

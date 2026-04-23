@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-from typing import Optional
 
-from .config import DB_PATH, DB_SCHEMA_VERSION, MAX_CONTENT_LENGTH
+from .config import DB_SCHEMA_VERSION, MAX_CONTENT_LENGTH
 from .docsets import DocsetSpec
 from .models import ApiRecord, GuideRecord
 
@@ -157,17 +156,16 @@ END;
 """
 
 
-def get_connection(db_path: Optional[Path] = None, readonly: bool = False) -> sqlite3.Connection:
+def get_connection(db_path: Path, readonly: bool = False) -> sqlite3.Connection:
     """Open a SQLite connection."""
 
-    path = db_path or DB_PATH
-    if readonly and not path.exists():
-        raise FileNotFoundError(path)
+    if readonly and not db_path.exists():
+        raise FileNotFoundError(db_path)
 
     if not readonly:
-        path.parent.mkdir(parents=True, exist_ok=True)
+        db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    uri = f"file:{path}"
+    uri = f"file:{db_path}"
     if readonly:
         uri += "?mode=ro"
 

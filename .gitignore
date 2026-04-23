@@ -7,5 +7,9 @@ CLAUDE.md
 *.db
 *.db-wal
 *.db-shm
+*.db.gz
 .env
 .env.local
+
+# config.yaml may contain user-specific settings; commit a .example instead
+# config.yaml

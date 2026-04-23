@@ -5,7 +5,7 @@ An MCP server for offline game engine documentation. The codebase now supports m
 Current built-in docsets:
 
 - `godot:4.6:reference` -> Godot Engine class reference + manual docs from `docs/godot/4.6/`
-- `unity:current:reference` -> Unity Manual + ScriptReference from `docs/unity/current/reference/`
+- `unity:6000.4.3f1:reference` -> Unity Manual + ScriptReference from `docs/unity/6000.4.3f1/reference/`
 - `unreal:4.26:cpp-api` -> Unreal Engine 4.26 C++ API from `docs/unreal/4.26/cpp-api/`
 - `unreal:4.26:blueprint-api` -> Unreal Engine 4.26 Blueprint API from `docs/unreal/4.26/blueprint-api/`
 
@@ -38,7 +38,7 @@ docs/
 Examples:
 
 - `docs/godot/4.6/`
-- `docs/unity/current/reference/`
+- `docs/unity/6000.4.3f1/reference/`
 - `docs/unreal/4.26/cpp-api/`
 - `docs/unreal/4.26/blueprint-api/`
 
@@ -90,7 +90,7 @@ uv run python scripts/build_index.py --list-docsets
 
 ## Build Indexes
 
-Build the default Unity index:
+Build indexes for all configured docsets that exist on disk:
 
 ```bash
 uv run python scripts/build_index.py

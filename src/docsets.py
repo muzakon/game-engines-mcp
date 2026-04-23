@@ -3,20 +3,42 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
 from typing import Iterable
 
+import yaml
+
 from .config import (
     DATA_DIR,
-    DEFAULT_ENGINE,
-    DEFAULT_UNITY_DOCSET,
-    DEFAULT_UNITY_VERSION,
     DOCSETS_MANIFEST_PATH,
     PROJECT_ROOT,
 )
+
+logger = logging.getLogger(__name__)
+
+# Default parser_kind per engine (and optionally per docset within an engine).
+_DEFAULT_PARSER_KINDS: dict[str, str] = {
+    "godot": "godot_html",
+    "unity": "unity_html",
+    "unreal": "unreal_cpp_html",
+}
+
+_UNREAL_DOCSET_PARSER_OVERRIDES: dict[str, str] = {
+    "cpp-api": "unreal_cpp_html",
+    "blueprint-api": "unreal_blueprint_html",
+}
+
+_CONFIG_YAML_PATH = PROJECT_ROOT / "config.yaml"
+
+
+def _default_parser_kind(engine: str, docset: str) -> str:
+    if engine == "unreal":
+        return _UNREAL_DOCSET_PARSER_OVERRIDES.get(docset, "unreal_cpp_html")
+    return _DEFAULT_PARSER_KINDS.get(engine, "unknown")
 
 
 def _normalize(value: str | None) -> str | None:
@@ -120,12 +142,56 @@ def _load_manifest_cached(manifest_path_str: str) -> tuple[DocsetSpec, ...]:
     return tuple(sorted(docsets, key=lambda spec: (spec.engine, spec.version, spec.docset)))
 
 
+def _load_from_config_yaml() -> tuple[DocsetSpec, ...] | None:
+    if not _CONFIG_YAML_PATH.exists():
+        return None
+
+    with open(_CONFIG_YAML_PATH, "r", encoding="utf-8") as f:
+        raw = yaml.safe_load(f)
+
+    if not raw or "engines" not in raw:
+        return None
+
+    docsets: list[DocsetSpec] = []
+    for entry in raw["engines"]:
+        engine = str(entry["engine"]).strip().lower()
+        version = str(entry["version"]).strip()
+        for docset_name in entry.get("docsets", ["reference"]):
+            docset_name = docset_name.strip().lower()
+            default_db = DATA_DIR / engine / version / f"{docset_name}.db"
+            default_docs_root = PROJECT_ROOT / "docs" / engine / version / docset_name
+            spec = DocsetSpec(
+                engine=engine,
+                version=version,
+                docset=docset_name,
+                label=f"{engine.title()} {version} {docset_name}",
+                docs_root=default_docs_root,
+                db_path=default_db,
+                parser_kind=_default_parser_kind(engine, docset_name),
+            )
+            docsets.append(spec)
+
+    logger.info("Loaded %d docset(s) from config.yaml", len(docsets))
+    return tuple(sorted(docsets, key=lambda spec: (spec.engine, spec.version, spec.docset)))
+
+
 def clear_docset_cache() -> None:
     _load_manifest_cached.cache_clear()
 
 
 def get_registered_docsets(manifest_path: Path | None = None) -> tuple[DocsetSpec, ...]:
-    path = manifest_path or default_manifest_path()
+    # If a custom manifest is explicitly requested (via arg or env var), use that
+    explicit = manifest_path or os.environ.get("UNITY_MCP_DOCSETS_MANIFEST")
+    if explicit:
+        return _load_manifest_cached(str(Path(explicit).resolve()))
+
+    # Otherwise prefer config.yaml when it exists
+    from_config = _load_from_config_yaml()
+    if from_config is not None:
+        return from_config
+
+    # Fall back to docsets.json manifest
+    path = default_manifest_path()
     return _load_manifest_cached(str(path.resolve()))
 
 
@@ -146,7 +212,6 @@ def select_docsets(
     *,
     available_only: bool = False,
     indexed_only: bool = False,
-    default_to_unity: bool = False,
     manifest_path: Path | None = None,
 ) -> list[DocsetSpec]:
     """Filter registered docsets by engine/version/docset."""
@@ -158,11 +223,6 @@ def select_docsets(
         engine, version, docset = docset.split(":", 2)
         engine = _normalize(engine)
         docset = _normalize(docset)
-
-    if default_to_unity and not engine and not version and not docset:
-        engine = DEFAULT_ENGINE
-        version = DEFAULT_UNITY_VERSION
-        docset = DEFAULT_UNITY_DOCSET
 
     matches: list[DocsetSpec] = []
     for spec in get_registered_docsets(manifest_path):
@@ -177,7 +237,7 @@ def select_docsets(
 
 
 def get_docset(
-    engine: str = DEFAULT_ENGINE,
+    engine: str | None = None,
     version: str | None = None,
     docset: str | None = None,
     *,
