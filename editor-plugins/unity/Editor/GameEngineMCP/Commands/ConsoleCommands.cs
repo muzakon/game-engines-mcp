@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEditor;
+using UnityEngine;
 
 namespace GameEngineMCP
 {
@@ -10,6 +11,7 @@ namespace GameEngineMCP
     /// and storing entries in a ring buffer. Clear console uses reflection to
     /// clear the Console window.
     /// </summary>
+    [InitializeOnLoad]
     public static class ConsoleCommands
     {
         private const int MAX_LOG_ENTRIES = 1000;

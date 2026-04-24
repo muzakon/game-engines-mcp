@@ -11,7 +11,7 @@ namespace GameEngineMCP
         {
             var path = req.GetStringParam("path", "");
             var componentName = req.GetStringParam("component", "");
-            var obj = GameObject.Find(path);
+            var obj = UnityMcpUtility.FindGameObject(path, req.GetIntParam("instanceId", -1));
 
             if (obj == null)
             {
@@ -55,7 +55,7 @@ namespace GameEngineMCP
             var propertyName = req.GetStringParam("property", "");
             var value = req.Params != null && req.Params.ContainsKey("value") ? req.Params["value"] : null;
 
-            var obj = GameObject.Find(path);
+            var obj = UnityMcpUtility.FindGameObject(path, req.GetIntParam("instanceId", -1));
             if (obj == null)
                 return McpResponse.Err(req.Id, $"Object not found: '{path}'");
 
@@ -69,6 +69,7 @@ namespace GameEngineMCP
 
             if (prop != null)
             {
+                Undo.RecordObject(comp, $"MCP Set {propertyName}");
                 if (!ApplySerializedProperty(prop, value))
                     return McpResponse.Err(req.Id, $"Cannot set property type for '{propertyName}'");
 
@@ -87,8 +88,10 @@ namespace GameEngineMCP
                 BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
             if (field != null)
             {
+                Undo.RecordObject(comp, $"MCP Set {propertyName}");
                 var converted = ConvertValue(value, field.FieldType);
                 field.SetValue(comp, converted);
+                EditorUtility.SetDirty(comp);
                 return McpResponse.Ok(req.Id, new Dictionary<string, object>
                 {
                     ["path"] = path,
@@ -102,8 +105,10 @@ namespace GameEngineMCP
                 BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
             if (property != null && property.CanWrite)
             {
+                Undo.RecordObject(comp, $"MCP Set {propertyName}");
                 var converted = ConvertValue(value, property.PropertyType);
                 property.SetValue(comp, converted);
+                EditorUtility.SetDirty(comp);
                 return McpResponse.Ok(req.Id, new Dictionary<string, object>
                 {
                     ["path"] = path,
@@ -122,7 +127,7 @@ namespace GameEngineMCP
             var componentName = req.GetStringParam("component", "");
             var properties = req.GetDictParam("properties");
 
-            var obj = GameObject.Find(path);
+            var obj = UnityMcpUtility.FindGameObject(path, req.GetIntParam("instanceId", -1));
             if (obj == null)
                 return McpResponse.Err(req.Id, $"Object not found: '{path}'");
 
@@ -133,6 +138,7 @@ namespace GameEngineMCP
             var so = new SerializedObject(comp);
             var set = new List<string>();
             var failed = new List<string>();
+            Undo.RecordObject(comp, $"MCP Set Properties {componentName}");
 
             foreach (var kvp in properties)
             {
@@ -149,6 +155,7 @@ namespace GameEngineMCP
                     if (field != null)
                     {
                         field.SetValue(comp, ConvertValue(kvp.Value, field.FieldType));
+                        EditorUtility.SetDirty(comp);
                         set.Add(kvp.Key);
                     }
                     else
@@ -169,8 +176,11 @@ namespace GameEngineMCP
 
         // --- Helpers ---
 
-        private static Component FindComponent(GameObject obj, string name)
+        internal static Component FindComponent(GameObject obj, string name)
         {
+            if (string.IsNullOrWhiteSpace(name) || name.Equals("GameObject", System.StringComparison.OrdinalIgnoreCase))
+                return obj.transform;
+
             foreach (var comp in obj.GetComponents<Component>())
             {
                 if (comp == null) continue;
@@ -258,6 +268,22 @@ namespace GameEngineMCP
                     case SerializedPropertyType.String:
                         prop.stringValue = value?.ToString() ?? "";
                         return true;
+                    case SerializedPropertyType.Color:
+                        if (value is string colorString && ColorUtility.TryParseHtmlString(colorString, out var color))
+                        {
+                            prop.colorValue = color;
+                            return true;
+                        }
+                        return false;
+                    case SerializedPropertyType.Vector2:
+                        prop.vector2Value = UnityMcpUtility.ToVector2(UnityMcpUtility.ToList(value), prop.vector2Value);
+                        return true;
+                    case SerializedPropertyType.Vector3:
+                        prop.vector3Value = UnityMcpUtility.ToVector3(UnityMcpUtility.ToList(value), prop.vector3Value);
+                        return true;
+                    case SerializedPropertyType.Quaternion:
+                        prop.quaternionValue = Quaternion.Euler(UnityMcpUtility.ToVector3(UnityMcpUtility.ToList(value), prop.quaternionValue.eulerAngles));
+                        return true;
                     case SerializedPropertyType.Enum:
                         if (value is string enumStr)
                         {
@@ -288,10 +314,14 @@ namespace GameEngineMCP
                 return System.Convert.ToBoolean(value);
             if (targetType == typeof(string))
                 return value.ToString();
-            if (targetType == typeof(Vector3) && value is List<object> v3 && v3.Count >= 3)
-                return new Vector3((float)(double)v3[0], (float)(double)v3[1], (float)(double)v3[2]);
-            if (targetType == typeof(Vector2) && value is List<object> v2 && v2.Count >= 2)
-                return new Vector2((float)(double)v2[0], (float)(double)v2[1]);
+            if (targetType == typeof(Vector3))
+                return UnityMcpUtility.ToVector3(UnityMcpUtility.ToList(value), Vector3.zero);
+            if (targetType == typeof(Vector2))
+                return UnityMcpUtility.ToVector2(UnityMcpUtility.ToList(value), Vector2.zero);
+            if (targetType == typeof(Color) && value is string colorString && ColorUtility.TryParseHtmlString(colorString, out var color))
+                return color;
+            if (targetType.IsEnum)
+                return value is string enumString ? System.Enum.Parse(targetType, enumString, true) : System.Enum.ToObject(targetType, System.Convert.ToInt32(value));
 
             return System.Convert.ChangeType(value, targetType);
         }

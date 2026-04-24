@@ -38,7 +38,7 @@ namespace GameEngineMCP
         {
             _host = McpServer.Host;
             _port = McpServer.Port;
-            _autoStart = true; // TODO: load from settings
+            _autoStart = McpServer.AutoStart;
         }
 
         private void OnGUI()

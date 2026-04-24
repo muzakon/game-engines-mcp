@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using UnityEditor;
 using UnityEngine;
 
 namespace GameEngineMCP
@@ -38,6 +39,7 @@ namespace GameEngineMCP
         public static bool ClientConnected => _client != null && _client.Connected;
         public static int Port => _port;
         public static string Host => _host;
+        public static bool AutoStart => _autoStart;
 
         static McpServer()
         {
@@ -201,16 +203,42 @@ namespace GameEngineMCP
 
         private static void ProcessCommand(string json)
         {
+            var waitHandle = new ManualResetEvent(false);
+            McpResponse response = null;
+            var requestId = 0;
+
             try
             {
-                var request = McpRequest.FromJson(json);
-                var response = CommandRouter.Route(request);
-                SendResponse(response);
+                var parsed = JObject.Parse(json);
+                requestId = parsed.TryGetValue("id", out var idToken) ? idToken.Value<int>() : 0;
             }
-            catch (Exception ex)
+            catch
             {
-                SendResponse(new McpResponse(0, "error", error: $"Parse error: {ex.Message}"));
+                // The main-thread parse below will return the real parse error.
             }
+
+            EditorApplication.delayCall += () =>
+            {
+                try
+                {
+                    var request = McpRequest.FromJson(json);
+                    response = CommandRouter.Route(request);
+                }
+                catch (Exception ex)
+                {
+                    response = new McpResponse(requestId, "error", error: $"Parse error: {ex.Message}");
+                }
+                finally
+                {
+                    waitHandle.Set();
+                }
+            };
+
+            if (!waitHandle.WaitOne(30000))
+                response = new McpResponse(requestId, "error", error: "Command timed out waiting for Unity main thread");
+
+            SendResponse(response);
+            waitHandle.Dispose();
         }
 
         private static void SendResponse(McpResponse response)

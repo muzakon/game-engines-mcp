@@ -64,15 +64,15 @@ namespace GameEngineMCP
 
         public List<object> GetListParam(string key)
         {
-            if (Params != null && Params.TryGetValue(key, out var val) && val is JArray arr)
-                return arr.ToObject<List<object>>() ?? new List<object>();
+            if (Params != null && Params.TryGetValue(key, out var val))
+                return UnityMcpUtility.ToList(val);
             return new List<object>();
         }
 
         public Dictionary<string, object> GetDictParam(string key)
         {
-            if (Params != null && Params.TryGetValue(key, out var val) && val is JObject obj)
-                return obj.ToObject<Dictionary<string, object>>() ?? new Dictionary<string, object>();
+            if (Params != null && Params.TryGetValue(key, out var val))
+                return UnityMcpUtility.ToDictionary(val);
             return new Dictionary<string, object>();
         }
     }

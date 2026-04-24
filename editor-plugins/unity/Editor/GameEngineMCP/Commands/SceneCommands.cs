@@ -8,6 +8,41 @@ namespace GameEngineMCP
 {
     public static class SceneCommands
     {
+        public static McpResponse NewScene(McpRequest req)
+        {
+            var setup = req.GetStringParam("setup", "default").ToLowerInvariant();
+            var mode = req.GetStringParam("mode", "single").ToLowerInvariant();
+            var newSceneSetup = setup == "empty" ? NewSceneSetup.EmptyScene : NewSceneSetup.DefaultGameObjects;
+            var newSceneMode = mode == "additive" ? NewSceneMode.Additive : NewSceneMode.Single;
+            var scene = EditorSceneManager.NewScene(newSceneSetup, newSceneMode);
+            return McpResponse.Ok(req.Id, SerializeScene(scene));
+        }
+
+        public static McpResponse OpenScene(McpRequest req)
+        {
+            var path = req.GetStringParam("path", "");
+            if (string.IsNullOrWhiteSpace(path))
+                return McpResponse.Err(req.Id, "No scene path provided");
+
+            path = UnityMcpUtility.NormalizeAssetPath(path);
+            var mode = req.GetStringParam("mode", "single").ToLowerInvariant() == "additive"
+                ? OpenSceneMode.Additive
+                : OpenSceneMode.Single;
+            var scene = EditorSceneManager.OpenScene(path, mode);
+            return McpResponse.Ok(req.Id, SerializeScene(scene));
+        }
+
+        public static McpResponse CloseScene(McpRequest req)
+        {
+            var path = req.GetStringParam("path", "");
+            var removeScene = req.GetBoolParam("removeScene", true);
+            var scene = ResolveScene(path);
+            if (!scene.IsValid())
+                return McpResponse.Err(req.Id, $"Scene not found: '{path}'");
+            var closed = EditorSceneManager.CloseScene(scene, removeScene);
+            return McpResponse.Ok(req.Id, new Dictionary<string, object> { ["closed"] = closed, ["path"] = path });
+        }
+
         public static McpResponse GetSceneHierarchy(McpRequest req)
         {
             var scene = SceneManager.GetActiveScene();
@@ -36,13 +71,20 @@ namespace GameEngineMCP
         public static McpResponse GetActiveScene(McpRequest req)
         {
             var scene = SceneManager.GetActiveScene();
+            return McpResponse.Ok(req.Id, SerializeScene(scene));
+        }
+
+        public static McpResponse GetOpenScenes(McpRequest req)
+        {
+            var scenes = new List<Dictionary<string, object>>();
+            for (var i = 0; i < SceneManager.sceneCount; i++)
+            {
+                scenes.Add(SerializeScene(SceneManager.GetSceneAt(i)));
+            }
             return McpResponse.Ok(req.Id, new Dictionary<string, object>
             {
-                ["name"] = scene.name,
-                ["path"] = scene.path,
-                ["isDirty"] = scene.isDirty,
-                ["isLoaded"] = scene.isLoaded,
-                ["rootCount"] = scene.rootCount
+                ["scenes"] = scenes,
+                ["count"] = scenes.Count
             });
         }
 
@@ -66,6 +108,26 @@ namespace GameEngineMCP
             return McpResponse.Ok(req.Id, new Dictionary<string, object> { ["savedTo"] = scene.path });
         }
 
+        public static McpResponse SaveAllScenes(McpRequest req)
+        {
+            var saved = EditorSceneManager.SaveOpenScenes();
+            return McpResponse.Ok(req.Id, new Dictionary<string, object> { ["saved"] = saved });
+        }
+
+        public static McpResponse MarkSceneDirty(McpRequest req)
+        {
+            var path = req.GetStringParam("path", "");
+            var scene = ResolveScene(path);
+            if (!scene.IsValid())
+                return McpResponse.Err(req.Id, $"Scene not found: '{path}'");
+            var marked = EditorSceneManager.MarkSceneDirty(scene);
+            return McpResponse.Ok(req.Id, new Dictionary<string, object>
+            {
+                ["markedDirty"] = marked,
+                ["scene"] = SerializeScene(scene)
+            });
+        }
+
         internal static Dictionary<string, object> SerializeGameObject(GameObject obj)
         {
             var result = new Dictionary<string, object>
@@ -74,7 +136,8 @@ namespace GameEngineMCP
                 ["active"] = obj.activeSelf,
                 ["layer"] = LayerMask.LayerToName(obj.layer),
                 ["tag"] = obj.tag,
-                ["instanceId"] = obj.GetInstanceID()
+                ["instanceId"] = obj.GetInstanceID(),
+                ["path"] = UnityMcpUtility.GetHierarchyPath(obj)
             };
 
             // Transform
@@ -105,6 +168,34 @@ namespace GameEngineMCP
             result["children"] = children;
 
             return result;
+        }
+
+        private static Scene ResolveScene(string pathOrName)
+        {
+            if (string.IsNullOrWhiteSpace(pathOrName))
+                return SceneManager.GetActiveScene();
+
+            for (var i = 0; i < SceneManager.sceneCount; i++)
+            {
+                var scene = SceneManager.GetSceneAt(i);
+                if (scene.path == pathOrName || scene.name == pathOrName)
+                    return scene;
+            }
+            return default(Scene);
+        }
+
+        private static Dictionary<string, object> SerializeScene(Scene scene)
+        {
+            return new Dictionary<string, object>
+            {
+                ["name"] = scene.name,
+                ["path"] = scene.path,
+                ["isDirty"] = scene.isDirty,
+                ["isLoaded"] = scene.isLoaded,
+                ["isValid"] = scene.IsValid(),
+                ["rootCount"] = scene.rootCount,
+                ["buildIndex"] = scene.buildIndex
+            };
         }
     }
 }

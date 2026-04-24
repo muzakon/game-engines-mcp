@@ -10,36 +10,7 @@ namespace GameEngineMCP
         {
             var path = req.GetStringParam("path", "");
             var instanceId = req.GetIntParam("instanceId", -1);
-
-            GameObject obj = null;
-
-            if (instanceId > 0)
-            {
-                obj = EditorUtility.InstanceIDToObject(instanceId) as GameObject;
-            }
-
-            if (obj == null && !string.IsNullOrEmpty(path))
-            {
-                obj = GameObject.Find(path);
-            }
-
-            if (obj == null)
-            {
-                // Try finding by name only (last segment of path)
-                var name = path;
-                if (path.Contains("/"))
-                    name = path.Substring(path.LastIndexOf('/') + 1);
-
-                var all = GameObject.FindObjectsOfType<GameObject>();
-                foreach (var go in all)
-                {
-                    if (go.name == name)
-                    {
-                        obj = go;
-                        break;
-                    }
-                }
-            }
+            var obj = UnityMcpUtility.FindGameObject(path, instanceId);
 
             if (obj == null)
             {
@@ -57,7 +28,7 @@ namespace GameEngineMCP
 
             GameObject newObj;
 
-            switch (type.ToLower())
+            switch (type.ToLowerInvariant())
             {
                 case "cube":
                     newObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -88,7 +59,7 @@ namespace GameEngineMCP
             // Parent if specified
             if (!string.IsNullOrEmpty(parentPath))
             {
-                var parent = GameObject.Find(parentPath);
+                var parent = UnityMcpUtility.FindGameObject(parentPath);
                 if (parent != null)
                 {
                     newObj.transform.SetParent(parent.transform);
@@ -104,14 +75,15 @@ namespace GameEngineMCP
             {
                 ["name"] = newObj.name,
                 ["instanceId"] = newObj.GetInstanceID(),
-                ["type"] = type
+                ["type"] = type,
+                ["path"] = UnityMcpUtility.GetHierarchyPath(newObj)
             });
         }
 
         public static McpResponse DeleteObject(McpRequest req)
         {
             var path = req.GetStringParam("path", "");
-            var obj = GameObject.Find(path);
+            var obj = UnityMcpUtility.FindGameObject(path, req.GetIntParam("instanceId", -1));
 
             if (obj == null)
             {
@@ -127,7 +99,7 @@ namespace GameEngineMCP
         public static McpResponse MoveObject(McpRequest req)
         {
             var path = req.GetStringParam("path", "");
-            var obj = GameObject.Find(path);
+            var obj = UnityMcpUtility.FindGameObject(path, req.GetIntParam("instanceId", -1));
 
             if (obj == null)
             {
@@ -137,7 +109,7 @@ namespace GameEngineMCP
             var parentPath = req.GetStringParam("parent", "");
             if (!string.IsNullOrEmpty(parentPath))
             {
-                var parent = GameObject.Find(parentPath);
+                var parent = UnityMcpUtility.FindGameObject(parentPath);
                 if (parent != null)
                     obj.transform.SetParent(parent.transform);
                 else
@@ -148,31 +120,22 @@ namespace GameEngineMCP
             var position = req.GetListParam("position");
             if (position.Count >= 3)
             {
-                t.position = new Vector3(
-                    (float)(double)position[0],
-                    (float)(double)position[1],
-                    (float)(double)position[2]
-                );
+                Undo.RecordObject(t, $"MCP Move {obj.name}");
+                t.position = UnityMcpUtility.ToVector3(position, t.position);
             }
 
             var rotation = req.GetListParam("rotation");
             if (rotation.Count >= 3)
             {
-                t.rotation = Quaternion.Euler(
-                    (float)(double)rotation[0],
-                    (float)(double)rotation[1],
-                    (float)(double)rotation[2]
-                );
+                Undo.RecordObject(t, $"MCP Rotate {obj.name}");
+                t.rotation = Quaternion.Euler(UnityMcpUtility.ToVector3(rotation, t.rotation.eulerAngles));
             }
 
             var scale = req.GetListParam("scale");
             if (scale.Count >= 3)
             {
-                t.localScale = new Vector3(
-                    (float)(double)scale[0],
-                    (float)(double)scale[1],
-                    (float)(double)scale[2]
-                );
+                Undo.RecordObject(t, $"MCP Scale {obj.name}");
+                t.localScale = UnityMcpUtility.ToVector3(scale, t.localScale);
             }
 
             return McpResponse.Ok(req.Id, new Dictionary<string, object>
@@ -182,6 +145,98 @@ namespace GameEngineMCP
                 ["rotation"] = new List<object> { t.rotation.eulerAngles.x, t.rotation.eulerAngles.y, t.rotation.eulerAngles.z },
                 ["scale"] = new List<object> { t.localScale.x, t.localScale.y, t.localScale.z }
             });
+        }
+
+        public static McpResponse DuplicateObject(McpRequest req)
+        {
+            var path = req.GetStringParam("path", "");
+            var obj = UnityMcpUtility.FindGameObject(path, req.GetIntParam("instanceId", -1));
+            if (obj == null)
+                return McpResponse.Err(req.Id, $"Object not found: '{path}'");
+
+            var clone = Object.Instantiate(obj, obj.transform.parent);
+            clone.name = req.GetStringParam("name", obj.name + " Copy");
+            Undo.RegisterCreatedObjectUndo(clone, $"MCP Duplicate {obj.name}");
+            Selection.activeGameObject = clone;
+            return McpResponse.Ok(req.Id, SceneCommands.SerializeGameObject(clone));
+        }
+
+        public static McpResponse SetActive(McpRequest req)
+        {
+            var path = req.GetStringParam("path", "");
+            var active = req.GetBoolParam("active", true);
+            var obj = UnityMcpUtility.FindGameObject(path, req.GetIntParam("instanceId", -1));
+            if (obj == null)
+                return McpResponse.Err(req.Id, $"Object not found: '{path}'");
+
+            Undo.RecordObject(obj, $"MCP Set Active {obj.name}");
+            obj.SetActive(active);
+            return McpResponse.Ok(req.Id, new Dictionary<string, object> { ["path"] = UnityMcpUtility.GetHierarchyPath(obj), ["active"] = obj.activeSelf });
+        }
+
+        public static McpResponse AddComponent(McpRequest req)
+        {
+            var path = req.GetStringParam("path", "");
+            var typeName = req.GetStringParam("component", req.GetStringParam("type", ""));
+            if (string.IsNullOrWhiteSpace(typeName))
+                return McpResponse.Err(req.Id, "No component type provided");
+
+            var obj = UnityMcpUtility.FindGameObject(path, req.GetIntParam("instanceId", -1));
+            if (obj == null)
+                return McpResponse.Err(req.Id, $"Object not found: '{path}'");
+
+            var type = FindComponentType(typeName);
+            if (type == null || !typeof(Component).IsAssignableFrom(type))
+                return McpResponse.Err(req.Id, $"Component type not found: '{typeName}'");
+
+            var component = Undo.AddComponent(obj, type);
+            return McpResponse.Ok(req.Id, new Dictionary<string, object>
+            {
+                ["path"] = UnityMcpUtility.GetHierarchyPath(obj),
+                ["component"] = component.GetType().Name
+            });
+        }
+
+        public static McpResponse RemoveComponent(McpRequest req)
+        {
+            var path = req.GetStringParam("path", "");
+            var componentName = req.GetStringParam("component", "");
+            var obj = UnityMcpUtility.FindGameObject(path, req.GetIntParam("instanceId", -1));
+            if (obj == null)
+                return McpResponse.Err(req.Id, $"Object not found: '{path}'");
+
+            var component = PropertyCommands.FindComponent(obj, componentName);
+            if (component == null || component is Transform)
+                return McpResponse.Err(req.Id, $"Removable component not found: '{componentName}'");
+
+            Undo.DestroyObjectImmediate(component);
+            return McpResponse.Ok(req.Id, new Dictionary<string, object> { ["removed"] = componentName, ["path"] = UnityMcpUtility.GetHierarchyPath(obj) });
+        }
+
+        private static System.Type FindComponentType(string typeName)
+        {
+            foreach (var assembly in System.AppDomain.CurrentDomain.GetAssemblies())
+            {
+                var type = assembly.GetType(typeName) ?? assembly.GetType("UnityEngine." + typeName);
+                if (type != null) return type;
+
+                System.Type[] candidates;
+                try
+                {
+                    candidates = assembly.GetTypes();
+                }
+                catch (System.Reflection.ReflectionTypeLoadException ex)
+                {
+                    candidates = ex.Types;
+                }
+
+                foreach (var candidate in candidates)
+                {
+                    if (candidate != null && candidate.Name.Equals(typeName, System.StringComparison.OrdinalIgnoreCase))
+                        return candidate;
+                }
+            }
+            return null;
         }
     }
 }

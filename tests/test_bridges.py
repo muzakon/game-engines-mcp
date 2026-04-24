@@ -22,6 +22,7 @@ from src.bridges.base import (
     NotConnectedError,
 )
 from src.bridges.registry import BridgeRegistry
+from src.bridges.unity_bridge import UnityBridge
 from src.bridge_config import load_bridge_config
 
 
@@ -237,6 +238,30 @@ class TestEditorBridge:
         bridge = MockBridge()
         with pytest.raises(NotConnectedError):
             _run(bridge.send_command("ping"))
+
+
+class TestUnityBridgeCommands:
+    def test_unity_specific_methods_send_expected_commands(self):
+        bridge = UnityBridge()
+        sent: list[tuple[str, dict]] = []
+
+        async def _send(command, params=None, timeout=30.0):
+            sent.append((command, params or {}))
+            return McpResponse(0, "ok", {"ok": True})
+
+        bridge.send_command = _send
+
+        assert _run(bridge.open_scene("Assets/Main.unity"))["ok"]
+        assert _run(bridge.add_component("Player", "Rigidbody"))["ok"]
+        assert _run(bridge.get_asset_dependencies("Assets/Main.unity"))["ok"]
+        assert sent == [
+            ("open_scene", {"path": "Assets/Main.unity", "mode": "single"}),
+            ("add_component", {"path": "Player", "component": "Rigidbody"}),
+            (
+                "get_asset_dependencies",
+                {"path": "Assets/Main.unity", "recursive": True},
+            ),
+        ]
 
 
 # ---------------------------------------------------------------------------

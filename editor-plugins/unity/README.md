@@ -127,6 +127,13 @@ Once connected, the following tools work with `engine='unity'`:
 | `editor_execute_code` | `editor_execute_code(engine='unity', code='Debug.Log("hi")')` |
 | `editor_disconnect` | `editor_disconnect(engine='unity')` |
 
+The Unity bridge also implements lower-level Unity-specific commands for clients that call the bridge directly:
+
+- Scene: `new_scene`, `open_scene`, `close_scene`, `get_open_scenes`, `save_all_scenes`, `mark_scene_dirty`
+- Editor: `execute_menu_item`, `repaint_editor`, `get_selection`, `set_selection`, `ping_object`
+- GameObject: `duplicate_object`, `set_object_active`, `add_component`, `remove_component`
+- Assets: `get_asset`, `import_asset`, `refresh_assets`, `create_folder`, `delete_asset`, `move_asset`, `copy_asset`, `rename_asset`, `get_asset_dependencies`, `reveal_asset`
+
 ## Plugin File Structure
 
 ```
@@ -136,7 +143,7 @@ unity/
     GameEngineMCP/
       McpServer.cs              # TCP listener, lifecycle, settings
       CommandRouter.cs          # Command dispatch
-      MiniJson.cs               # JSON serialization
+      UnityMcpUtility.cs        # Shared object/path/value helpers
       Commands/
         EditorCommands.cs       # ping, play, pause, stop, info, run_tests
         ConsoleCommands.cs      # get_console_logs, clear_console
