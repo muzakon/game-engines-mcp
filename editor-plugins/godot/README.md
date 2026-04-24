@@ -143,11 +143,9 @@ The `create_object` tool supports these type shortcuts:
 addons/
   game_engine_mcp/
     plugin.cfg                # Godot plugin manifest
-    plugin.gd                 # EditorPlugin entry point
-    mcp_server.gd             # TCP server + command router
+    plugin.gd                 # EditorPlugin entry point (preloads McpServer)
+    mcp_server.gd             # TCP server + all command implementations
     console_capturer.gd       # Console log ring buffer
-    commands/
-      commands.gd             # All command implementations (static methods)
 ```
 
 ## Differences from Unity Plugin

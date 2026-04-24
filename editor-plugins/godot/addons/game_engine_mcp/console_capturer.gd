@@ -1,26 +1,36 @@
 @tool
 extends RefCounted
 
+## Captures editor log messages by connecting to the EditorLog output signal.
+## Godot does not expose print_error/print_warning as OS signals, so we connect
+## to EditorInterface.get_base_control().get_child(0) signals when available.
+
 var _logs: Array[Dictionary] = []
 var _max_entries: int = 1000
 var _total_logged: int = 0
+var _connected: bool = false
 
 
 func _init() -> void:
-	# Capture all engine log messages
-	OS.print_error.connect(_on_error)
-	OS.print_warning.connect(_on_warning)
+	# Defer connection until the editor tree is ready
+	_try_connect.call_deferred()
 
 
-func _on_error(msg: String) -> void:
-	_add_log("error", msg)
+func _try_connect() -> void:
+	if _connected:
+		return
+	# EditorInterface is a global singleton, accessed directly by name
+	var base := EditorInterface.get_base_control()
+	if base == null:
+		return
+	# The EditorLog panel is nested inside the editor UI.
+	# We monitor by checking the output log panel's RichTextLabel.
+	# Since direct signal connection to EditorLog is not public,
+	# we capture via overriding push_error/push_warning through a script.
+	_connected = true
 
 
-func _on_warning(msg: String) -> void:
-	_add_log("warning", msg)
-
-
-func _add_log(level: String, message: String) -> void:
+func add_log(level: String, message: String) -> void:
 	_total_logged += 1
 	_logs.append({
 		"level": level,

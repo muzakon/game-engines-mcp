@@ -1,7 +1,9 @@
 @tool
 extends EditorPlugin
 
-var _server: McpServer
+const McpServer = preload("mcp_server.gd")
+
+var _server: Node
 
 
 func _enter_tree() -> void:
