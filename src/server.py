@@ -11,10 +11,12 @@ Tool groups
 3. **Navigation** – class hierarchies, member listing, module browsing.
 4. **Translation** – cross-engine concept/symbol translation.
 5. **Index management** – building/rebuilding indexes and vector stores.
+6. **Editor** – live editor interaction (console, scene, objects, play/pause).
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import sys
@@ -721,6 +723,24 @@ def main() -> None:
         logger.warning("No config.yaml found — skipping auto-download")
     except Exception as exc:
         logger.warning("Auto-download failed: %s", exc)
+
+    # Register live editor tools
+    try:
+        from .editor_tools import register_editor_tools
+
+        register_editor_tools(mcp)
+    except Exception as exc:
+        logger.warning("Editor tools registration failed: %s", exc)
+
+    # Auto-connect bridges if configured
+    try:
+        from .bridge_config import load_bridge_config
+        from .bridges.registry import BridgeRegistry
+
+        config = load_bridge_config()
+        asyncio.run(BridgeRegistry.instance().auto_connect(config))
+    except Exception as exc:
+        logger.warning("Bridge auto-connect failed: %s", exc)
 
     transport = os.environ.get("MCP_TRANSPORT", "streamable-http")
     if "--stdio" in sys.argv:

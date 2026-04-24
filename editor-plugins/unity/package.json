@@ -1,0 +1,14 @@
+{
+  "name": "com.gameenginemcp.unity",
+  "displayName": "Game Engine MCP",
+  "version": "0.1.0",
+  "unity": "2021.3",
+  "description": "TCP command port for live editor interaction via Model Context Protocol. Connects to game-engine-mcp Python server for AI-assisted Unity development.",
+  "keywords": ["mcp", "ai", "editor", "tcp"],
+  "author": {
+    "name": "Game Engine MCP"
+  },
+  "dependencies": {
+    "com.unity.nuget.newtonsoft-json": "3.2.2"
+  }
+}
