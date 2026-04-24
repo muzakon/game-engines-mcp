@@ -159,6 +159,123 @@ func get_inspector(context: RefCounted) -> Dictionary:
 	return context.editor_service.get_inspector()
 
 
+func play_custom_scene(context: RefCounted, params: Dictionary) -> Dictionary:
+	return context.editor_service.play_custom_scene(str(params.get("path", "")))
+
+
+func save_all_scenes(context: RefCounted) -> Dictionary:
+	return context.editor_service.save_all_scenes()
+
+
+func restart_editor(context: RefCounted, params: Dictionary) -> Dictionary:
+	return context.editor_service.restart_editor(bool(params.get("save", true)))
+
+
+func get_current_feature_profile(context: RefCounted) -> Dictionary:
+	return context.editor_service.get_current_feature_profile()
+
+
+func get_editor_paths(context: RefCounted) -> Dictionary:
+	return context.editor_service.get_editor_paths()
+
+
+func is_plugin_enabled(context: RefCounted, params: Dictionary) -> Dictionary:
+	return context.editor_service.is_plugin_enabled(str(params.get("plugin", "")))
+
+
+func set_plugin_enabled(context: RefCounted, params: Dictionary) -> Dictionary:
+	return context.editor_service.set_plugin_enabled(str(params.get("plugin", "")), bool(params.get("enabled", true)))
+
+
+func get_editor_theme(context: RefCounted) -> Dictionary:
+	return context.editor_service.get_editor_theme()
+
+
+func get_editor_language(context: RefCounted) -> Dictionary:
+	return context.editor_service.get_editor_language()
+
+
+func is_multi_window_enabled(context: RefCounted) -> Dictionary:
+	return context.editor_service.is_multi_window_enabled()
+
+
+func inspect_object(context: RefCounted, params: Dictionary) -> Dictionary:
+	return context.editor_service.inspect_object(
+		str(params.get("path", "")),
+		str(params.get("for_property", "")),
+		bool(params.get("inspector_only", false))
+	)
+
+
+func set_object_edited(context: RefCounted, params: Dictionary) -> Dictionary:
+	return context.editor_service.set_object_edited(str(params.get("path", "")), bool(params.get("edited", true)))
+
+
+func is_object_edited(context: RefCounted, params: Dictionary) -> Dictionary:
+	return context.editor_service.is_object_edited(str(params.get("path", "")))
+
+
+func get_snap_settings(context: RefCounted) -> Dictionary:
+	return context.editor_service.get_snap_settings()
+
+
+func push_toast(context: RefCounted, params: Dictionary) -> Dictionary:
+	return context.editor_service.push_toast(str(params.get("message", "")), int(params.get("severity", 0)))
+
+
+func navigate_filesystem(context: RefCounted, params: Dictionary) -> Dictionary:
+	return context.editor_service.navigate_filesystem(str(params.get("path", "")))
+
+
+func scan_filesystem(context: RefCounted) -> Dictionary:
+	return context.editor_service.scan_filesystem()
+
+
+func scan_sources(context: RefCounted) -> Dictionary:
+	return context.editor_service.scan_sources()
+
+
+func reimport_files(context: RefCounted, params: Dictionary) -> Dictionary:
+	var files: Array = params.get("files", [])
+	return context.editor_service.reimport_files(files)
+
+
+func get_file_type(context: RefCounted, params: Dictionary) -> Dictionary:
+	return context.editor_service.get_file_type(str(params.get("path", "")))
+
+
+func get_filesystem_directory(context: RefCounted, params: Dictionary) -> Dictionary:
+	return context.editor_service.get_filesystem_directory(str(params.get("path", "")))
+
+
+func get_current_script(context: RefCounted) -> Dictionary:
+	return context.editor_service.get_current_script()
+
+
+func get_open_scripts(context: RefCounted) -> Dictionary:
+	return context.editor_service.get_open_scripts()
+
+
+func get_unsaved_script_files(context: RefCounted) -> Dictionary:
+	return context.editor_service.get_unsaved_script_files()
+
+
+func save_all_scripts(context: RefCounted) -> Dictionary:
+	return context.editor_service.save_all_scripts()
+
+
+func reload_open_files(context: RefCounted) -> Dictionary:
+	return context.editor_service.reload_open_files()
+
+
+func get_breakpoints(context: RefCounted) -> Dictionary:
+	return context.editor_service.get_breakpoints()
+
+
+func goto_line(context: RefCounted, params: Dictionary) -> Dictionary:
+	return context.editor_service.goto_line(int(params.get("line", 0)))
+
+
 func new_scene(context: RefCounted, params: Dictionary) -> Dictionary:
 	return {
 		"status": "error",

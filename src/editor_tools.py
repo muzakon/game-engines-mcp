@@ -493,6 +493,401 @@ def register_editor_tools(mcp: FastMCP) -> None:
         except Exception as exc:
             return _handle_error(exc, engine, "execute_code")
 
+    @mcp.tool()
+    def editor_play_custom_scene(engine: str, path: str) -> str:
+        """Play a specific scene in the editor (not the main scene).
+
+        Examples:
+          - engine='godot', path='res://scenes/level_2.tscn'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            _run(bridge.play_custom_scene(path))
+            return f"{engine} editor: playing scene '{path}'"
+        except Exception as exc:
+            return _handle_error(exc, engine, "play_custom_scene")
+
+    @mcp.tool()
+    def editor_save_all_scenes(engine: str) -> str:
+        """Save all open scenes in the editor.
+
+        Examples:
+          - engine='godot'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            _run(bridge.save_all_scenes())
+            return f"{engine} editor: all scenes saved"
+        except Exception as exc:
+            return _handle_error(exc, engine, "save_all_scenes")
+
+    @mcp.tool()
+    def editor_restart(engine: str, save: bool = True) -> str:
+        """Restart the editor. Optionally save all scenes before restarting.
+
+        Examples:
+          - engine='godot', save=True
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            _run(bridge.restart_editor(save=save))
+            return f"{engine} editor: restarting (save={save})"
+        except Exception as exc:
+            return _handle_error(exc, engine, "restart_editor")
+
+    @mcp.tool()
+    def editor_get_paths(engine: str) -> str:
+        """Get editor paths (cache, config, data, project settings directories).
+
+        Examples:
+          - engine='godot'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            data = _run(bridge.get_editor_paths())
+            lines = [f"{engine} Editor Paths:"]
+            for key in ["cacheDir", "configDir", "dataDir", "projectSettingsDir"]:
+                if key in data:
+                    lines.append(f"  {key}: {data[key]}")
+            lines.append(f"  isSelfContained: {data.get('isSelfContained', False)}")
+            return "\n".join(lines)
+        except Exception as exc:
+            return _handle_error(exc, engine, "get_editor_paths")
+
+    @mcp.tool()
+    def editor_get_plugin_state(engine: str, plugin: str) -> str:
+        """Check whether an editor plugin is enabled.
+
+        Examples:
+          - engine='godot', plugin='game_engine_mcp'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            data = _run(bridge.is_plugin_enabled(plugin))
+            state = "enabled" if data.get("enabled") else "disabled"
+            return f"Plugin '{plugin}' is {state}"
+        except Exception as exc:
+            return _handle_error(exc, engine, "is_plugin_enabled")
+
+    @mcp.tool()
+    def editor_set_plugin_state(engine: str, plugin: str, enabled: bool) -> str:
+        """Enable or disable an editor plugin.
+
+        Examples:
+          - engine='godot', plugin='some_plugin', enabled=True
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            _run(bridge.set_plugin_enabled(plugin, enabled))
+            state = "enabled" if enabled else "disabled"
+            return f"Plugin '{plugin}' {state}"
+        except Exception as exc:
+            return _handle_error(exc, engine, "set_plugin_enabled")
+
+    @mcp.tool()
+    def editor_get_snap_settings(engine: str) -> str:
+        """Get the editor's snap/grid settings for 3D nodes.
+
+        Examples:
+          - engine='godot'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            data = _run(bridge.get_snap_settings())
+            lines = [f"{engine} Snap Settings:"]
+            lines.append(f"  translateSnap: {data.get('node3dTranslateSnap')}")
+            lines.append(f"  rotateSnap: {data.get('node3dRotateSnap')}")
+            lines.append(f"  scaleSnap: {data.get('node3dScaleSnap')}")
+            lines.append(f"  snapEnabled: {data.get('node3dSnapEnabled')}")
+            return "\n".join(lines)
+        except Exception as exc:
+            return _handle_error(exc, engine, "get_snap_settings")
+
+    @mcp.tool()
+    def editor_push_toast(engine: str, message: str, severity: int = 0) -> str:
+        """Show a notification toast in the editor.
+
+        Severity: 0=info, 1=warning, 2=error.
+
+        Examples:
+          - engine='godot', message='Build complete', severity=0
+          - engine='godot', message='Missing texture', severity=1
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            _run(bridge.push_toast(message, severity))
+            return f"Toast shown: '{message}' (severity={severity})"
+        except Exception as exc:
+            return _handle_error(exc, engine, "push_toast")
+
+    @mcp.tool()
+    def editor_navigate_filesystem(engine: str, path: str) -> str:
+        """Navigate the editor's filesystem dock to a specific path.
+
+        Examples:
+          - engine='godot', path='res://textures'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            _run(bridge.navigate_filesystem(path))
+            return f"Filesystem dock navigated to '{path}'"
+        except Exception as exc:
+            return _handle_error(exc, engine, "navigate_filesystem")
+
+    @mcp.tool()
+    def editor_scan_filesystem(engine: str) -> str:
+        """Trigger a full filesystem rescan in the editor.
+
+        Examples:
+          - engine='godot'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            _run(bridge.scan_filesystem())
+            return f"{engine} editor: filesystem scan started"
+        except Exception as exc:
+            return _handle_error(exc, engine, "scan_filesystem")
+
+    @mcp.tool()
+    def editor_reimport_files(engine: str, files: list[str]) -> str:
+        """Force reimport of specific asset files.
+
+        Examples:
+          - engine='godot', files=['res://icon.svg', 'res://textures/ground.png']
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            _run(bridge.reimport_files(files))
+            return f"Reimporting {len(files)} files"
+        except Exception as exc:
+            return _handle_error(exc, engine, "reimport_files")
+
+    @mcp.tool()
+    def editor_get_file_type(engine: str, path: str) -> str:
+        """Get the resource type of a file without loading it.
+
+        Examples:
+          - engine='godot', path='res://icon.svg'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            data = _run(bridge.get_file_type(path))
+            return f"File '{path}' type: {data.get('type', 'unknown')}"
+        except Exception as exc:
+            return _handle_error(exc, engine, "get_file_type")
+
+    @mcp.tool()
+    def editor_get_filesystem_directory(engine: str, path: str = "res://") -> str:
+        """List files and subdirectories in the editor's resource filesystem.
+
+        Returns richer data than list_assets (includes file types and import status).
+
+        Examples:
+          - engine='godot', path='res://scenes'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            data = _run(bridge.get_filesystem_directory(path))
+            lines = [f"Directory: {data.get('path', path)}"]
+            for f in data.get("files", []):
+                imp = " [import ok]" if f.get("importValid") else ""
+                lines.append(f"  {f.get('name', '?')} ({f.get('type', '?')}){imp}")
+            for d in data.get("subdirs", []):
+                lines.append(f"  {d.get('name', '?')}/ ({d.get('fileCount', 0)} files)")
+            return "\n".join(lines)
+        except Exception as exc:
+            return _handle_error(exc, engine, "get_filesystem_directory")
+
+    @mcp.tool()
+    def editor_get_current_script(engine: str) -> str:
+        """Get the currently open script in the editor's script editor.
+
+        Examples:
+          - engine='godot'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            data = _run(bridge.get_current_script())
+            path = data.get("path", "")
+            if not path:
+                return "No script currently open"
+            return f"Current script: {path}"
+        except Exception as exc:
+            return _handle_error(exc, engine, "get_current_script")
+
+    @mcp.tool()
+    def editor_get_open_scripts(engine: str) -> str:
+        """List all scripts currently open in the editor's script editor.
+
+        Examples:
+          - engine='godot'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            data = _run(bridge.get_open_scripts())
+            scripts = data.get("scripts", [])
+            if not scripts:
+                return "No scripts open"
+            lines = [f"Open scripts ({len(scripts)}):"]
+            for s in scripts:
+                lines.append(f"  {s.get('path', '?')}")
+            return "\n".join(lines)
+        except Exception as exc:
+            return _handle_error(exc, engine, "get_open_scripts")
+
+    @mcp.tool()
+    def editor_get_unsaved_scripts(engine: str) -> str:
+        """Get a list of unsaved script files in the editor.
+
+        Examples:
+          - engine='godot'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            data = _run(bridge.get_unsaved_script_files())
+            unsaved = data.get("unsavedFiles", [])
+            if not unsaved:
+                return "No unsaved scripts"
+            return f"Unsaved scripts: {', '.join(unsaved)}"
+        except Exception as exc:
+            return _handle_error(exc, engine, "get_unsaved_script_files")
+
+    @mcp.tool()
+    def editor_save_all_scripts(engine: str) -> str:
+        """Save all open scripts in the editor.
+
+        Examples:
+          - engine='godot'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            _run(bridge.save_all_scripts())
+            return f"{engine} editor: all scripts saved"
+        except Exception as exc:
+            return _handle_error(exc, engine, "save_all_scripts")
+
+    @mcp.tool()
+    def editor_reload_scripts(engine: str) -> str:
+        """Reload all open script files from disk in the editor.
+
+        Examples:
+          - engine='godot'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            _run(bridge.reload_open_files())
+            return f"{engine} editor: open files reloaded"
+        except Exception as exc:
+            return _handle_error(exc, engine, "reload_open_files")
+
+    @mcp.tool()
+    def editor_get_breakpoints(engine: str) -> str:
+        """Get all breakpoints set in the editor.
+
+        Examples:
+          - engine='godot'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            data = _run(bridge.get_breakpoints())
+            bps = data.get("breakpoints", [])
+            if not bps:
+                return "No breakpoints set"
+            lines = [f"Breakpoints ({len(bps)}):"]
+            for bp in bps:
+                lines.append(f"  {bp}")
+            return "\n".join(lines)
+        except Exception as exc:
+            return _handle_error(exc, engine, "get_breakpoints")
+
+    @mcp.tool()
+    def editor_goto_line(engine: str, line: int) -> str:
+        """Jump to a specific line in the currently open script.
+
+        Examples:
+          - engine='godot', line=42
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            _run(bridge.goto_line(line))
+            return f"Jumped to line {line}"
+        except Exception as exc:
+            return _handle_error(exc, engine, "goto_line")
+
+    @mcp.tool()
+    def editor_inspect_object(engine: str, path: str, for_property: str = "", inspector_only: bool = False) -> str:
+        """Show an object in the editor's inspector panel.
+
+        Examples:
+          - engine='godot', path='Player'
+          - engine='godot', path='Player', for_property='position'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            _run(bridge.inspect_object(path, for_property=for_property, inspector_only=inspector_only))
+            return f"Inspecting '{path}'"
+        except Exception as exc:
+            return _handle_error(exc, engine, "inspect_object")
+
+    @mcp.tool()
+    def editor_set_object_edited(engine: str, path: str, edited: bool = True) -> str:
+        """Mark an object as edited (dirty) or unedited in the editor.
+
+        Examples:
+          - engine='godot', path='Player', edited=True
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            _run(bridge.set_object_edited(path, edited))
+            state = "edited" if edited else "unedited"
+            return f"'{path}' marked as {state}"
+        except Exception as exc:
+            return _handle_error(exc, engine, "set_object_edited")
+
 
 # ---------------------------------------------------------------------------
 # Formatting helpers

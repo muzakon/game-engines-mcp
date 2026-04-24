@@ -279,6 +279,227 @@ func get_inspector() -> Dictionary:
 	return {"status": "ok", "data": {"class": inspector.get_class(), "selectedPath": inspector.get_selected_path()}}
 
 
+func play_custom_scene(path: String) -> Dictionary:
+	if path.strip_edges() == "":
+		return {"status": "error", "error": "No scene path provided"}
+	_editor_interface.play_custom_scene(path)
+	return {"status": "ok", "data": {"playing": true, "scene": path}}
+
+
+func save_all_scenes() -> Dictionary:
+	_editor_interface.save_all_scenes()
+	return {"status": "ok", "data": {"savedAll": true}}
+
+
+func restart_editor(save: bool = true) -> Dictionary:
+	_editor_interface.restart_editor(save)
+	return {"status": "ok", "data": {"restarting": true, "saved": save}}
+
+
+func get_current_feature_profile() -> Dictionary:
+	return {"status": "ok", "data": {"profileName": _editor_interface.get_current_feature_profile()}}
+
+
+func get_editor_paths() -> Dictionary:
+	var paths = _editor_interface.get_editor_paths()
+	return {
+		"status": "ok",
+		"data": {
+			"cacheDir": paths.get_cache_dir(),
+			"configDir": paths.get_config_dir(),
+			"dataDir": paths.get_data_dir(),
+			"projectSettingsDir": paths.get_project_settings_dir(),
+			"isSelfContained": paths.is_self_contained(),
+			"selfContainedFile": paths.get_self_contained_file(),
+		}
+	}
+
+
+func is_plugin_enabled(plugin: String) -> Dictionary:
+	if plugin.strip_edges() == "":
+		return {"status": "error", "error": "No plugin name provided"}
+	return {"status": "ok", "data": {"plugin": plugin, "enabled": _editor_interface.is_plugin_enabled(plugin)}}
+
+
+func set_plugin_enabled(plugin: String, enabled: bool) -> Dictionary:
+	if plugin.strip_edges() == "":
+		return {"status": "error", "error": "No plugin name provided"}
+	_editor_interface.set_plugin_enabled(plugin, enabled)
+	return {"status": "ok", "data": {"plugin": plugin, "enabled": enabled}}
+
+
+func get_editor_theme() -> Dictionary:
+	var theme: Theme = _editor_interface.get_editor_theme()
+	return {"status": "ok", "data": {"class": theme.get_class(), "typeVariationCount": theme.get_type_variation_list("").size()}}
+
+
+func get_editor_language() -> Dictionary:
+	return {"status": "ok", "data": {"language": _editor_interface.get_editor_language()}}
+
+
+func is_multi_window_enabled() -> Dictionary:
+	return {"status": "ok", "data": {"multiWindowEnabled": _editor_interface.is_multi_window_enabled()}}
+
+
+func inspect_object(path: String, for_property: String = "", inspector_only: bool = false) -> Dictionary:
+	var node: Node = _resolve_node(path)
+	if node == null:
+		return {"status": "error", "error": "Node not found: %s" % path}
+	_editor_interface.inspect_object(node, for_property, inspector_only)
+	return {"status": "ok", "data": {"inspected": path, "forProperty": for_property}}
+
+
+func set_object_edited(path: String, edited: bool) -> Dictionary:
+	var node: Node = _resolve_node(path)
+	if node == null:
+		return {"status": "error", "error": "Node not found: %s" % path}
+	_editor_interface.set_object_edited(node, edited)
+	return {"status": "ok", "data": {"path": path, "edited": edited}}
+
+
+func is_object_edited(path: String) -> Dictionary:
+	var node: Node = _resolve_node(path)
+	if node == null:
+		return {"status": "error", "error": "Node not found: %s" % path}
+	return {"status": "ok", "data": {"path": path, "edited": _editor_interface.is_object_edited(node)}}
+
+
+func get_snap_settings() -> Dictionary:
+	return {
+		"status": "ok",
+		"data": {
+			"node3dTranslateSnap": _editor_interface.get_node_3d_translate_snap(),
+			"node3dRotateSnap": _editor_interface.get_node_3d_rotate_snap(),
+			"node3dScaleSnap": _editor_interface.get_node_3d_scale_snap(),
+			"node3dSnapEnabled": _editor_interface.is_node_3d_snap_enabled(),
+		}
+	}
+
+
+func push_toast(message: String, severity: int = 0) -> Dictionary:
+	if message.strip_edges() == "":
+		return {"status": "error", "error": "No message provided"}
+	var toaster = _editor_interface.get_editor_toaster()
+	toaster.push_toast(message, severity)
+	return {"status": "ok", "data": {"message": message, "severity": severity}}
+
+
+func navigate_filesystem(path: String) -> Dictionary:
+	if path.strip_edges() == "":
+		return {"status": "error", "error": "No path provided"}
+	var dock = _editor_interface.get_file_system_dock()
+	dock.navigate_to_path(path)
+	return {"status": "ok", "data": {"navigatedTo": path}}
+
+
+func scan_filesystem() -> Dictionary:
+	var fs = _editor_interface.get_resource_filesystem()
+	fs.scan()
+	return {"status": "ok", "data": {"scanning": true}}
+
+
+func scan_sources() -> Dictionary:
+	var fs = _editor_interface.get_resource_filesystem()
+	fs.scan_sources()
+	return {"status": "ok", "data": {"scanningSources": true}}
+
+
+func reimport_files(files: Array) -> Dictionary:
+	if files.is_empty():
+		return {"status": "error", "error": "No files provided"}
+	var packed: PackedStringArray = PackedStringArray()
+	for f in files:
+		packed.append(str(f))
+	var fs = _editor_interface.get_resource_filesystem()
+	fs.reimport_files(packed)
+	return {"status": "ok", "data": {"reimported": files}}
+
+
+func get_file_type(path: String) -> Dictionary:
+	if path.strip_edges() == "":
+		return {"status": "error", "error": "No path provided"}
+	var fs = _editor_interface.get_resource_filesystem()
+	return {"status": "ok", "data": {"path": path, "type": fs.get_file_type(path)}}
+
+
+func get_filesystem_directory(path: String) -> Dictionary:
+	var fs = _editor_interface.get_resource_filesystem()
+	var dir = fs.get_filesystem_path(path) if path.strip_edges() != "" else fs.get_filesystem()
+	if dir == null:
+		return {"status": "error", "error": "Directory not found: %s" % path}
+	return {"status": "ok", "data": _serialize_fs_dir(dir)}
+
+
+func get_current_script() -> Dictionary:
+	var script_editor = _editor_interface.get_script_editor()
+	var script = script_editor.get_current_script()
+	if script == null:
+		return {"status": "ok", "data": {"script": null, "path": ""}}
+	return {"status": "ok", "data": {"script": script.get_class(), "path": script.resource_path}}
+
+
+func get_open_scripts() -> Dictionary:
+	var script_editor = _editor_interface.get_script_editor()
+	var scripts: Array = script_editor.get_open_scripts()
+	var result: Array[Dictionary] = []
+	for s in scripts:
+		result.append({"class": s.get_class(), "path": s.resource_path})
+	return {"status": "ok", "data": {"scripts": result, "count": result.size()}}
+
+
+func get_unsaved_script_files() -> Dictionary:
+	var script_editor = _editor_interface.get_script_editor()
+	var unsaved: PackedStringArray = script_editor.get_unsaved_files()
+	return {"status": "ok", "data": {"unsavedFiles": Array(unsaved)}}
+
+
+func save_all_scripts() -> Dictionary:
+	var script_editor = _editor_interface.get_script_editor()
+	script_editor.save_all_scripts()
+	return {"status": "ok", "data": {"savedAll": true}}
+
+
+func reload_open_files() -> Dictionary:
+	var script_editor = _editor_interface.get_script_editor()
+	script_editor.reload_open_files()
+	return {"status": "ok", "data": {"reloaded": true}}
+
+
+func get_breakpoints() -> Dictionary:
+	var script_editor = _editor_interface.get_script_editor()
+	var breakpoints: PackedStringArray = script_editor.get_breakpoints()
+	return {"status": "ok", "data": {"breakpoints": Array(breakpoints)}}
+
+
+func goto_line(line_number: int) -> Dictionary:
+	var script_editor = _editor_interface.get_script_editor()
+	script_editor.goto_line(line_number)
+	return {"status": "ok", "data": {"line": line_number}}
+
+
+func _serialize_fs_dir(dir) -> Dictionary:
+	var result: Dictionary = {
+		"name": dir.get_name(),
+		"path": dir.get_path(),
+		"fileCount": dir.get_file_count(),
+		"subdirCount": dir.get_subdir_count(),
+	}
+	var files: Array[Dictionary] = []
+	for i in range(dir.get_file_count()):
+		files.append({
+			"name": dir.get_file(i),
+			"path": dir.get_file_path(i),
+			"type": dir.get_file_type(i),
+			"importValid": dir.get_file_import_is_valid(i),
+		})
+	result["files"] = files
+	var subdirs: Array[Dictionary] = []
+	for i in range(dir.get_subdir_count()):
+		subdirs.append(_serialize_fs_dir(dir.get_subdir(i)))
+	result["subdirs"] = subdirs
+	return result
+
+
 func _resolve_node(path: String) -> Node:
 	return _editor_interface.get_edited_scene_root().get_node_or_null(path) if _editor_interface.get_edited_scene_root() != null else null
 

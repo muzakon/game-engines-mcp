@@ -103,6 +103,62 @@ func route(request: Dictionary, context: RefCounted) -> Dictionary:
 			return _editor_commands.get_resource_previewer(context)
 		"get_inspector":
 			return _editor_commands.get_inspector(context)
+		"play_custom_scene":
+			return _editor_commands.play_custom_scene(context, params)
+		"save_all_scenes":
+			return _editor_commands.save_all_scenes(context)
+		"restart_editor":
+			return _editor_commands.restart_editor(context, params)
+		"get_current_feature_profile":
+			return _editor_commands.get_current_feature_profile(context)
+		"get_editor_paths":
+			return _editor_commands.get_editor_paths(context)
+		"is_plugin_enabled":
+			return _editor_commands.is_plugin_enabled(context, params)
+		"set_plugin_enabled":
+			return _editor_commands.set_plugin_enabled(context, params)
+		"get_editor_theme":
+			return _editor_commands.get_editor_theme(context)
+		"get_editor_language":
+			return _editor_commands.get_editor_language(context)
+		"is_multi_window_enabled":
+			return _editor_commands.is_multi_window_enabled(context)
+		"inspect_object":
+			return _editor_commands.inspect_object(context, params)
+		"set_object_edited":
+			return _editor_commands.set_object_edited(context, params)
+		"is_object_edited":
+			return _editor_commands.is_object_edited(context, params)
+		"get_snap_settings":
+			return _editor_commands.get_snap_settings(context)
+		"push_toast":
+			return _editor_commands.push_toast(context, params)
+		"navigate_filesystem":
+			return _editor_commands.navigate_filesystem(context, params)
+		"scan_filesystem":
+			return _editor_commands.scan_filesystem(context)
+		"scan_sources":
+			return _editor_commands.scan_sources(context)
+		"reimport_files":
+			return _editor_commands.reimport_files(context, params)
+		"get_file_type":
+			return _editor_commands.get_file_type(context, params)
+		"get_filesystem_directory":
+			return _editor_commands.get_filesystem_directory(context, params)
+		"get_current_script":
+			return _editor_commands.get_current_script(context)
+		"get_open_scripts":
+			return _editor_commands.get_open_scripts(context)
+		"get_unsaved_script_files":
+			return _editor_commands.get_unsaved_script_files(context)
+		"save_all_scripts":
+			return _editor_commands.save_all_scripts(context)
+		"reload_open_files":
+			return _editor_commands.reload_open_files(context)
+		"get_breakpoints":
+			return _editor_commands.get_breakpoints(context)
+		"goto_line":
+			return _editor_commands.goto_line(context, params)
 		"get_console_logs":
 			return _console_commands.get_console_logs(context, params)
 		"clear_console":

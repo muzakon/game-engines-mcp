@@ -127,6 +127,28 @@ Once connected, the following tools work with `engine='godot'`:
 | `editor_execute_code` | `editor_execute_code(engine='godot', code='print("hello")')` |
 | `editor_get_editor_docks` | `editor_get_editor_docks(engine='godot')` |
 | `editor_disconnect` | `editor_disconnect(engine='godot')` |
+| `editor_play_custom_scene` | `editor_play_custom_scene(engine='godot', path='res://scenes/level_2.tscn')` |
+| `editor_save_all_scenes` | `editor_save_all_scenes(engine='godot')` |
+| `editor_restart` | `editor_restart(engine='godot', save=True)` |
+| `editor_get_paths` | `editor_get_paths(engine='godot')` |
+| `editor_get_plugin_state` | `editor_get_plugin_state(engine='godot', plugin='some_plugin')` |
+| `editor_set_plugin_state` | `editor_set_plugin_state(engine='godot', plugin='some_plugin', enabled=True)` |
+| `editor_get_snap_settings` | `editor_get_snap_settings(engine='godot')` |
+| `editor_push_toast` | `editor_push_toast(engine='godot', message='Hello', severity=0)` |
+| `editor_navigate_filesystem` | `editor_navigate_filesystem(engine='godot', path='res://textures')` |
+| `editor_scan_filesystem` | `editor_scan_filesystem(engine='godot')` |
+| `editor_reimport_files` | `editor_reimport_files(engine='godot', files=['res://icon.svg'])` |
+| `editor_get_file_type` | `editor_get_file_type(engine='godot', path='res://icon.svg')` |
+| `editor_get_filesystem_directory` | `editor_get_filesystem_directory(engine='godot', path='res://scenes')` |
+| `editor_get_current_script` | `editor_get_current_script(engine='godot')` |
+| `editor_get_open_scripts` | `editor_get_open_scripts(engine='godot')` |
+| `editor_get_unsaved_scripts` | `editor_get_unsaved_scripts(engine='godot')` |
+| `editor_save_all_scripts` | `editor_save_all_scripts(engine='godot')` |
+| `editor_reload_scripts` | `editor_reload_scripts(engine='godot')` |
+| `editor_get_breakpoints` | `editor_get_breakpoints(engine='godot')` |
+| `editor_goto_line` | `editor_goto_line(engine='godot', line=42)` |
+| `editor_inspect_object` | `editor_inspect_object(engine='godot', path='Player')` |
+| `editor_set_object_edited` | `editor_set_object_edited(engine='godot', path='Player', edited=True)` |
 
 ## Supported Node Types for Creation
 
