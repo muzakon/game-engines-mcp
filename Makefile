@@ -14,6 +14,7 @@ run:
 	docker run -d --name $(IMAGE_NAME) \
 		--env-file .env \
 		-p $(UNITY_MCP_PORT):$(UNITY_MCP_PORT) \
+		-v $(PWD)/engines.local.yaml:/app/engines.local.yaml:ro \
 		$(IMAGE_NAME):$(IMAGE_TAG)
 
 stop:

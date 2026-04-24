@@ -32,21 +32,43 @@ def _bridge(engine: str):
     return bridge
 
 
+# The bridge connection and all its async I/O run on a dedicated loop
+# in a background thread.  This avoids "Future attached to a different
+# loop" errors because every bridge coroutine executes on the same loop
+# that owns the TCP reader/writer objects.
+import threading
+
+_bridge_loop: asyncio.AbstractEventLoop | None = None
+_bridge_thread: threading.Thread | None = None
+
+
+def _ensure_bridge_loop() -> asyncio.AbstractEventLoop:
+    """Return (and lazily start) the dedicated bridge event-loop thread."""
+    global _bridge_loop, _bridge_thread
+
+    if _bridge_loop is not None and _bridge_loop.is_running():
+        return _bridge_loop
+
+    _bridge_loop = asyncio.new_event_loop()
+
+    def _run_loop() -> None:
+        asyncio.set_event_loop(_bridge_loop)
+        _bridge_loop.run_forever()
+
+    _bridge_thread = threading.Thread(target=_run_loop, daemon=True)
+    _bridge_thread.start()
+    return _bridge_loop
+
+
 def _run(coro):
-    """Run an async coroutine from sync context (MCP tools are sync)."""
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
+    """Run an async coroutine on the dedicated bridge event loop.
 
-    if loop and loop.is_running():
-        import concurrent.futures
-
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            future = pool.submit(asyncio.run, coro)
-            return future.result(timeout=60)
-    else:
-        return asyncio.run(coro)
+    All bridge coroutines execute on a single background loop so that
+    TCP reader/writer objects are never used from a foreign loop.
+    """
+    loop = _ensure_bridge_loop()
+    future = asyncio.run_coroutine_threadsafe(coro, loop)
+    return future.result(timeout=60)
 
 
 def _not_connected_msg(engine: str) -> str:
@@ -91,11 +113,15 @@ def register_editor_tools(mcp: FastMCP) -> None:
         engine = engine.strip().lower()
         reg = _registry()
 
-        if not port:
-            from .bridge_config import load_bridge_config
+        # Load config defaults for both host and port
+        from .bridge_config import load_bridge_config
+        config = load_bridge_config()
+        engine_cfg = config.get(engine, {})
 
-            config = load_bridge_config()
-            port = config.get(engine, {}).get("port", 0)
+        if not port:
+            port = engine_cfg.get("port", 0)
+        if host == "127.0.0.1" and engine_cfg.get("host"):
+            host = engine_cfg["host"]
 
         if not port:
             defaults = {"unity": 9877, "unreal": 9878, "godot": 9879}
