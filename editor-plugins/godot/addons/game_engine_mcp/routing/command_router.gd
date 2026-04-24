@@ -51,6 +51,58 @@ func route(request: Dictionary, context: RefCounted) -> Dictionary:
 			return _editor_commands.get_open_scene_roots(context)
 		"get_editor_docks":
 			return _editor_commands.get_editor_docks(context)
+		"close_scene":
+			return _editor_commands.close_scene(context)
+		"select_file":
+			return _editor_commands.select_file(context, params)
+		"edit_node":
+			return _editor_commands.edit_node(context, params)
+		"edit_resource":
+			return _editor_commands.edit_resource(context, params)
+		"edit_script":
+			return _editor_commands.edit_script(context, params)
+		"add_root_node":
+			return _editor_commands.add_root_node(context, params)
+		"get_current_path":
+			return _editor_commands.get_current_path(context)
+		"get_current_directory":
+			return _editor_commands.get_current_directory(context)
+		"get_open_scenes":
+			return _editor_commands.get_open_scenes(context)
+		"get_playing_scene":
+			return _editor_commands.get_playing_scene(context)
+		"get_unsaved_scenes":
+			return _editor_commands.get_unsaved_scenes(context)
+		"get_selected_paths":
+			return _editor_commands.get_selected_paths(context)
+		"set_current_feature_profile":
+			return _editor_commands.set_current_feature_profile(context, params)
+		"set_main_screen_editor":
+			return _editor_commands.set_main_screen_editor(context, params)
+		"get_editor_scale":
+			return _editor_commands.get_editor_scale(context)
+		"get_editor_settings":
+			return _editor_commands.get_editor_settings(context, params)
+		"get_editor_setting":
+			return _editor_commands.get_editor_setting(context, params)
+		"set_editor_setting":
+			return _editor_commands.set_editor_setting(context, params)
+		"get_editor_setting_list":
+			return _editor_commands.get_editor_setting_list(context)
+		"get_selection":
+			return _editor_commands.get_selection(context)
+		"selection_add_node":
+			return _editor_commands.selection_add_node(context, params)
+		"selection_remove_node":
+			return _editor_commands.selection_remove_node(context, params)
+		"selection_clear":
+			return _editor_commands.selection_clear(context)
+		"get_resource_filesystem":
+			return _editor_commands.get_resource_filesystem(context)
+		"get_resource_previewer":
+			return _editor_commands.get_resource_previewer(context)
+		"get_inspector":
+			return _editor_commands.get_inspector(context)
 		"get_console_logs":
 			return _console_commands.get_console_logs(context, params)
 		"clear_console":

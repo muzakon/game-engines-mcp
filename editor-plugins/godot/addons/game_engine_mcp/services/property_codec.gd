@@ -22,7 +22,7 @@ func serialize_value(value: Variant) -> Variant:
 				output.append(serialize_value(item))
 			return output
 		TYPE_DICTIONARY:
-			var output := {}
+			var output: Dictionary = {}
 			for key in value:
 				output[str(key)] = serialize_value(value[key])
 			return output
@@ -44,7 +44,7 @@ func serialize_value(value: Variant) -> Variant:
 
 
 func coerce_value(property_info: Dictionary, value: Variant) -> Variant:
-	var property_type := int(property_info.get("type", TYPE_NIL))
+	var property_type: int = int(property_info.get("type", TYPE_NIL))
 	match property_type:
 		TYPE_BOOL:
 			return bool(value)

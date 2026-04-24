@@ -19,27 +19,27 @@ var _capture_label: Label
 func _ready() -> void:
 	name = "Game Engine MCP"
 
-	var root := VBoxContainer.new()
+	var root: VBoxContainer = VBoxContainer.new()
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	add_child(root)
 
-	var title := Label.new()
+	var title: Label = Label.new()
 	title.text = "Game Engine MCP"
 	root.add_child(title)
 
-	var host_row := HBoxContainer.new()
+	var host_row: HBoxContainer = HBoxContainer.new()
 	root.add_child(host_row)
-	var host_label := Label.new()
+	var host_label: Label = Label.new()
 	host_label.text = "Host"
 	host_row.add_child(host_label)
 	_host_input = LineEdit.new()
 	_host_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	host_row.add_child(_host_input)
 
-	var port_row := HBoxContainer.new()
+	var port_row: HBoxContainer = HBoxContainer.new()
 	root.add_child(port_row)
-	var port_label := Label.new()
+	var port_label: Label = Label.new()
 	port_label.text = "Port"
 	port_row.add_child(port_label)
 	_port_input = SpinBox.new()
@@ -53,9 +53,9 @@ func _ready() -> void:
 	_auto_start_toggle.text = "Auto start when plugin loads"
 	root.add_child(_auto_start_toggle)
 
-	var logs_row := HBoxContainer.new()
+	var logs_row: HBoxContainer = HBoxContainer.new()
 	root.add_child(logs_row)
-	var logs_label := Label.new()
+	var logs_label: Label = Label.new()
 	logs_label.text = "Max Logs"
 	logs_row.add_child(logs_label)
 	_max_logs_input = SpinBox.new()
@@ -65,25 +65,25 @@ func _ready() -> void:
 	_max_logs_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	logs_row.add_child(_max_logs_input)
 
-	var buttons := HBoxContainer.new()
+	var buttons: HBoxContainer = HBoxContainer.new()
 	root.add_child(buttons)
 
-	var apply_button := Button.new()
+	var apply_button: Button = Button.new()
 	apply_button.text = "Apply"
 	apply_button.pressed.connect(_on_apply_pressed)
 	buttons.add_child(apply_button)
 
-	var start_button := Button.new()
+	var start_button: Button = Button.new()
 	start_button.text = "Start"
 	start_button.pressed.connect(_on_start_pressed)
 	buttons.add_child(start_button)
 
-	var stop_button := Button.new()
+	var stop_button: Button = Button.new()
 	stop_button.text = "Stop"
 	stop_button.pressed.connect(_on_stop_pressed)
 	buttons.add_child(stop_button)
 
-	var restart_button := Button.new()
+	var restart_button: Button = Button.new()
 	restart_button.text = "Restart"
 	restart_button.pressed.connect(_on_restart_pressed)
 	buttons.add_child(restart_button)
@@ -106,11 +106,11 @@ func refresh(status: Dictionary) -> void:
 	if _host_input == null:
 		return
 
-	var running := bool(status.get("running", false))
+	var running: bool = bool(status.get("running", false))
 	_status_label.text = "Status: %s" % ("Running" if running else "Stopped")
 	_client_label.text = "Clients: %d" % int(status.get("clientCount", 0))
 
-	var last_error := str(status.get("lastError", ""))
+	var last_error: String = str(status.get("lastError", ""))
 	_error_label.text = "Last Error: %s" % (last_error if last_error != "" else "None")
 
 

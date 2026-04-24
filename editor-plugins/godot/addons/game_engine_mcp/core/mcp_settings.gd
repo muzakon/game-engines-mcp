@@ -12,9 +12,9 @@ var max_log_entries: int = 500
 
 
 static func load_or_default() -> RefCounted:
-	var settings := McpSettings.new()
-	var config := ConfigFile.new()
-	var err := config.load(SETTINGS_PATH)
+	var settings: McpSettings = McpSettings.new()
+	var config: ConfigFile = ConfigFile.new()
+	var err: int = config.load(SETTINGS_PATH)
 	if err != OK:
 		return settings
 
@@ -28,7 +28,7 @@ static func load_or_default() -> RefCounted:
 
 func save() -> int:
 	normalize()
-	var config := ConfigFile.new()
+	var config: ConfigFile = ConfigFile.new()
 	config.set_value(CONFIG_SECTION, "host", host)
 	config.set_value(CONFIG_SECTION, "port", port)
 	config.set_value(CONFIG_SECTION, "auto_start", auto_start)

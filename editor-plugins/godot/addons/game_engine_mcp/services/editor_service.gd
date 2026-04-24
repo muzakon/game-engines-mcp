@@ -108,3 +108,185 @@ func get_editor_docks() -> Dictionary:
 			"scriptEditorClass": script_editor.get_class() if script_editor != null else "",
 		}
 	}
+
+
+func close_scene() -> Dictionary:
+	var err: Error = _editor_interface.close_scene()
+	if err != OK:
+		return {"status": "error", "error": "Failed to close scene (error %d)" % err}
+	return {"status": "ok", "data": {"closed": true}}
+
+
+func select_file(file: String) -> Dictionary:
+	if file.strip_edges() == "":
+		return {"status": "error", "error": "No file path provided"}
+	_editor_interface.select_file(file)
+	return {"status": "ok", "data": {"selectedFile": file}}
+
+
+func edit_node(path: String) -> Dictionary:
+	var node: Node = _resolve_node(path)
+	if node == null:
+		return {"status": "error", "error": "Node not found: %s" % path}
+	_editor_interface.edit_node(node)
+	return {"status": "ok", "data": {"editedNode": path}}
+
+
+func edit_resource(path: String) -> Dictionary:
+	if path.strip_edges() == "":
+		return {"status": "error", "error": "No resource path provided"}
+	var resource: Resource = load(path)
+	if resource == null:
+		return {"status": "error", "error": "Resource not found: %s" % path}
+	_editor_interface.edit_resource(resource)
+	return {"status": "ok", "data": {"editedResource": path}}
+
+
+func edit_script(path: String, line: int = -1, column: int = 0, grab_focus: bool = true) -> Dictionary:
+	if path.strip_edges() == "":
+		return {"status": "error", "error": "No script path provided"}
+	var script: Script = load(path)
+	if script == null:
+		return {"status": "error", "error": "Script not found: %s" % path}
+	_editor_interface.edit_script(script, line, column, grab_focus)
+	return {"status": "ok", "data": {"editedScript": path, "line": line, "column": column}}
+
+
+func add_root_node(path: String) -> Dictionary:
+	var node: Node = _resolve_node(path)
+	if node == null:
+		return {"status": "error", "error": "Node not found: %s" % path}
+	_editor_interface.add_root_node(node)
+	return {"status": "ok", "data": {"rootNode": path}}
+
+
+func get_current_path() -> Dictionary:
+	return {"status": "ok", "data": {"currentPath": _editor_interface.get_current_path()}}
+
+
+func get_current_directory() -> Dictionary:
+	return {"status": "ok", "data": {"currentDirectory": _editor_interface.get_current_directory()}}
+
+
+func get_open_scenes() -> Dictionary:
+	var scenes: PackedStringArray = _editor_interface.get_open_scenes()
+	return {"status": "ok", "data": {"openScenes": Array(scenes)}}
+
+
+func get_playing_scene() -> Dictionary:
+	return {"status": "ok", "data": {"playingScene": _editor_interface.get_playing_scene()}}
+
+
+func get_unsaved_scenes() -> Dictionary:
+	var scenes: PackedStringArray = _editor_interface.get_unsaved_scenes()
+	return {"status": "ok", "data": {"unsavedScenes": Array(scenes)}}
+
+
+func get_selected_paths() -> Dictionary:
+	var paths: PackedStringArray = _editor_interface.get_selected_paths()
+	return {"status": "ok", "data": {"selectedPaths": Array(paths)}}
+
+
+func set_current_feature_profile(profile_name: String) -> Dictionary:
+	_editor_interface.set_current_feature_profile(profile_name)
+	return {"status": "ok", "data": {"profileName": profile_name}}
+
+
+func set_main_screen_editor(name: String) -> Dictionary:
+	_editor_interface.set_main_screen_editor(name)
+	return {"status": "ok", "data": {"mainScreen": name}}
+
+
+func get_editor_scale() -> Dictionary:
+	return {"status": "ok", "data": {"editorScale": _editor_interface.get_editor_scale()}}
+
+
+func get_editor_settings(params: Dictionary) -> Dictionary:
+	var settings: EditorSettings = _editor_interface.get_editor_settings()
+	var key: String = str(params.get("key", "")).strip_edges()
+	if key != "":
+		return {"status": "ok", "data": {"key": key, "value": settings.get_setting(key)}}
+	var keys: Array = settings.get_property_list()
+	return {"status": "ok", "data": {"properties": keys}}
+
+
+func set_editor_setting(key: String, value: Variant) -> Dictionary:
+	key = key.strip_edges()
+	if key == "":
+		return {"status": "error", "error": "No setting key provided"}
+	var settings: EditorSettings = _editor_interface.get_editor_settings()
+	settings.set_setting(key, value)
+	return {"status": "ok", "data": {"key": key, "value": value}}
+
+
+func get_editor_setting(key: String) -> Dictionary:
+	key = key.strip_edges()
+	if key == "":
+		return {"status": "error", "error": "No setting key provided"}
+	var settings: EditorSettings = _editor_interface.get_editor_settings()
+	return {"status": "ok", "data": {"key": key, "value": settings.get_setting(key)}}
+
+
+func get_editor_setting_list() -> Dictionary:
+	var settings: EditorSettings = _editor_interface.get_editor_settings()
+	var list: Array = settings.get_property_list()
+	return {"status": "ok", "data": {"properties": list, "count": list.size()}}
+
+
+func get_selection() -> Dictionary:
+	var selection = _editor_interface.get_selection()
+	var nodes: Array = selection.get_selected_nodes()
+	var serialized: Array[Dictionary] = []
+	for item in nodes:
+		if item is Node:
+			serialized.append({"name": item.name, "path": _node_path(item)})
+	return {"status": "ok", "data": {"selectedNodes": serialized, "count": serialized.size()}}
+
+
+func selection_add_node(path: String) -> Dictionary:
+	var node: Node = _resolve_node(path)
+	if node == null:
+		return {"status": "error", "error": "Node not found: %s" % path}
+	_editor_interface.get_selection().add_node(node)
+	return {"status": "ok", "data": {"added": path}}
+
+
+func selection_remove_node(path: String) -> Dictionary:
+	var node: Node = _resolve_node(path)
+	if node == null:
+		return {"status": "error", "error": "Node not found: %s" % path}
+	_editor_interface.get_selection().remove_node(node)
+	return {"status": "ok", "data": {"removed": path}}
+
+
+func selection_clear() -> Dictionary:
+	_editor_interface.get_selection().clear()
+	return {"status": "ok", "data": {"cleared": true}}
+
+
+func get_resource_filesystem() -> Dictionary:
+	var fs = _editor_interface.get_resource_filesystem()
+	return {"status": "ok", "data": {"class": fs.get_class(), "isScanning": fs.is_scanning(), "progress": fs.get_scanning_progress()}}
+
+
+func get_resource_previewer() -> Dictionary:
+	var previewer = _editor_interface.get_resource_previewer()
+	return {"status": "ok", "data": {"class": previewer.get_class()}}
+
+
+func get_inspector() -> Dictionary:
+	var inspector = _editor_interface.get_inspector()
+	return {"status": "ok", "data": {"class": inspector.get_class(), "selectedPath": inspector.get_selected_path()}}
+
+
+func _resolve_node(path: String) -> Node:
+	return _editor_interface.get_edited_scene_root().get_node_or_null(path) if _editor_interface.get_edited_scene_root() != null else null
+
+
+func _node_path(node: Node) -> String:
+	var root: Node = _editor_interface.get_edited_scene_root()
+	if root == null:
+		return str(node.name)
+	if root == node:
+		return root.name
+	return "%s/%s" % [root.name, str(root.get_path_to(node))]
