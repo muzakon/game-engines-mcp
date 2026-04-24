@@ -64,7 +64,9 @@ class GodotBridge(EditorBridge):
         return resp.data
 
     async def set_plugin_enabled(self, plugin: str, enabled: bool) -> dict[str, Any]:
-        resp = await self.send_command("set_plugin_enabled", {"plugin": plugin, "enabled": enabled})
+        resp = await self.send_command(
+            "set_plugin_enabled", {"plugin": plugin, "enabled": enabled}
+        )
         self._check_error(resp)
         return resp.data
 
@@ -87,7 +89,9 @@ class GodotBridge(EditorBridge):
     # Object / inspector
     # ------------------------------------------------------------------
 
-    async def inspect_object(self, path: str, for_property: str = "", inspector_only: bool = False) -> dict[str, Any]:
+    async def inspect_object(
+        self, path: str, for_property: str = "", inspector_only: bool = False
+    ) -> dict[str, Any]:
         params: dict[str, Any] = {"path": path}
         if for_property:
             params["for_property"] = for_property
@@ -98,7 +102,9 @@ class GodotBridge(EditorBridge):
         return resp.data
 
     async def set_object_edited(self, path: str, edited: bool) -> dict[str, Any]:
-        resp = await self.send_command("set_object_edited", {"path": path, "edited": edited})
+        resp = await self.send_command(
+            "set_object_edited", {"path": path, "edited": edited}
+        )
         self._check_error(resp)
         return resp.data
 
@@ -121,7 +127,9 @@ class GodotBridge(EditorBridge):
     # ------------------------------------------------------------------
 
     async def push_toast(self, message: str, severity: int = 0) -> dict[str, Any]:
-        resp = await self.send_command("push_toast", {"message": message, "severity": severity})
+        resp = await self.send_command(
+            "push_toast", {"message": message, "severity": severity}
+        )
         self._check_error(resp)
         return resp.data
 

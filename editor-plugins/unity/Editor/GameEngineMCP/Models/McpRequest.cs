@@ -44,7 +44,16 @@ namespace GameEngineMCP
         public int GetIntParam(string key, int defaultValue = 0)
         {
             if (Params != null && Params.TryGetValue(key, out var val) && val != null)
-                return System.Convert.ToInt32(val);
+            {
+                try
+                {
+                    return System.Convert.ToInt32(val);
+                }
+                catch
+                {
+                    return defaultValue;
+                }
+            }
             return defaultValue;
         }
 

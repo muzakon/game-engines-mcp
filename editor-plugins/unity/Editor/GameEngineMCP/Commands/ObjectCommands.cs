@@ -6,17 +6,23 @@ namespace GameEngineMCP
 {
     public static class ObjectCommands
     {
-        public static McpResponse GetObject(McpRequest req)
+        /// <summary>
+        /// Resolves a GameObject from standard request parameters.
+        /// Looks up by entityId first, then instanceId, then path.
+        /// </summary>
+        private static GameObject ResolveObject(McpRequest req)
         {
             var path = req.GetStringParam("path", "");
             var instanceId = req.GetIntParam("instanceId", -1);
-            var obj = UnityMcpUtility.FindGameObject(path, instanceId);
+            var entityId = req.GetStringParam("entityId", "");
+            return UnityMcpUtility.FindGameObject(path, instanceId, entityId);
+        }
 
+        public static McpResponse GetObject(McpRequest req)
+        {
+            var obj = ResolveObject(req);
             if (obj == null)
-            {
-                return McpResponse.Err(req.Id, $"Object not found: '{path}'");
-            }
-
+                return McpResponse.Err(req.Id, $"Object not found: '{req.GetStringParam("path", "")}'");
             return McpResponse.Ok(req.Id, SceneCommands.SerializeGameObject(obj));
         }
 
@@ -56,24 +62,20 @@ namespace GameEngineMCP
 
             newObj.name = name;
 
-            // Parent if specified
             if (!string.IsNullOrEmpty(parentPath))
             {
                 var parent = UnityMcpUtility.FindGameObject(parentPath);
                 if (parent != null)
-                {
                     newObj.transform.SetParent(parent.transform);
-                }
             }
 
-            // Register undo
             Undo.RegisterCreatedObjectUndo(newObj, $"MCP Create {name}");
-
             Selection.activeGameObject = newObj;
 
             return McpResponse.Ok(req.Id, new Dictionary<string, object>
             {
                 ["name"] = newObj.name,
+                ["entityId"] = UnityMcpUtility.GetObjectId(newObj),
                 ["instanceId"] = newObj.GetInstanceID(),
                 ["type"] = type,
                 ["path"] = UnityMcpUtility.GetHierarchyPath(newObj)
@@ -82,29 +84,20 @@ namespace GameEngineMCP
 
         public static McpResponse DeleteObject(McpRequest req)
         {
-            var path = req.GetStringParam("path", "");
-            var obj = UnityMcpUtility.FindGameObject(path, req.GetIntParam("instanceId", -1));
-
+            var obj = ResolveObject(req);
             if (obj == null)
-            {
-                return McpResponse.Err(req.Id, $"Object not found: '{path}'");
-            }
+                return McpResponse.Err(req.Id, $"Object not found: '{req.GetStringParam("path", "")}'");
 
             var name = obj.name;
             Undo.DestroyObjectImmediate(obj);
-
             return McpResponse.Ok(req.Id, new Dictionary<string, object> { ["deleted"] = name });
         }
 
         public static McpResponse MoveObject(McpRequest req)
         {
-            var path = req.GetStringParam("path", "");
-            var obj = UnityMcpUtility.FindGameObject(path, req.GetIntParam("instanceId", -1));
-
+            var obj = ResolveObject(req);
             if (obj == null)
-            {
-                return McpResponse.Err(req.Id, $"Object not found: '{path}'");
-            }
+                return McpResponse.Err(req.Id, $"Object not found: '{req.GetStringParam("path", "")}'");
 
             var parentPath = req.GetStringParam("parent", "");
             if (!string.IsNullOrEmpty(parentPath))
@@ -149,10 +142,9 @@ namespace GameEngineMCP
 
         public static McpResponse DuplicateObject(McpRequest req)
         {
-            var path = req.GetStringParam("path", "");
-            var obj = UnityMcpUtility.FindGameObject(path, req.GetIntParam("instanceId", -1));
+            var obj = ResolveObject(req);
             if (obj == null)
-                return McpResponse.Err(req.Id, $"Object not found: '{path}'");
+                return McpResponse.Err(req.Id, $"Object not found: '{req.GetStringParam("path", "")}'");
 
             var clone = Object.Instantiate(obj, obj.transform.parent);
             clone.name = req.GetStringParam("name", obj.name + " Copy");
@@ -163,11 +155,10 @@ namespace GameEngineMCP
 
         public static McpResponse SetActive(McpRequest req)
         {
-            var path = req.GetStringParam("path", "");
             var active = req.GetBoolParam("active", true);
-            var obj = UnityMcpUtility.FindGameObject(path, req.GetIntParam("instanceId", -1));
+            var obj = ResolveObject(req);
             if (obj == null)
-                return McpResponse.Err(req.Id, $"Object not found: '{path}'");
+                return McpResponse.Err(req.Id, $"Object not found: '{req.GetStringParam("path", "")}'");
 
             Undo.RecordObject(obj, $"MCP Set Active {obj.name}");
             obj.SetActive(active);
@@ -176,14 +167,13 @@ namespace GameEngineMCP
 
         public static McpResponse AddComponent(McpRequest req)
         {
-            var path = req.GetStringParam("path", "");
             var typeName = req.GetStringParam("component", req.GetStringParam("type", ""));
             if (string.IsNullOrWhiteSpace(typeName))
                 return McpResponse.Err(req.Id, "No component type provided");
 
-            var obj = UnityMcpUtility.FindGameObject(path, req.GetIntParam("instanceId", -1));
+            var obj = ResolveObject(req);
             if (obj == null)
-                return McpResponse.Err(req.Id, $"Object not found: '{path}'");
+                return McpResponse.Err(req.Id, $"Object not found: '{req.GetStringParam("path", "")}'");
 
             var type = FindComponentType(typeName);
             if (type == null || !typeof(Component).IsAssignableFrom(type))
@@ -199,11 +189,10 @@ namespace GameEngineMCP
 
         public static McpResponse RemoveComponent(McpRequest req)
         {
-            var path = req.GetStringParam("path", "");
             var componentName = req.GetStringParam("component", "");
-            var obj = UnityMcpUtility.FindGameObject(path, req.GetIntParam("instanceId", -1));
+            var obj = ResolveObject(req);
             if (obj == null)
-                return McpResponse.Err(req.Id, $"Object not found: '{path}'");
+                return McpResponse.Err(req.Id, $"Object not found: '{req.GetStringParam("path", "")}'");
 
             var component = PropertyCommands.FindComponent(obj, componentName);
             if (component == null || component is Transform)

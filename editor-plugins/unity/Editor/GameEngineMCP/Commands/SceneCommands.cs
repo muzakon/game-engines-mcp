@@ -136,6 +136,7 @@ namespace GameEngineMCP
                 ["active"] = obj.activeSelf,
                 ["layer"] = LayerMask.LayerToName(obj.layer),
                 ["tag"] = obj.tag,
+                ["entityId"] = UnityMcpUtility.GetObjectId(obj),
                 ["instanceId"] = obj.GetInstanceID(),
                 ["path"] = UnityMcpUtility.GetHierarchyPath(obj)
             };

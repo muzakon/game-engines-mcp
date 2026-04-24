@@ -7,15 +7,25 @@ namespace GameEngineMCP
 {
     public static class PropertyCommands
     {
-        public static McpResponse GetProperties(McpRequest req)
+        /// <summary>
+        /// Resolves a GameObject from standard request parameters.
+        /// </summary>
+        private static GameObject ResolveObject(McpRequest req)
         {
             var path = req.GetStringParam("path", "");
+            var instanceId = req.GetIntParam("instanceId", -1);
+            var entityId = req.GetStringParam("entityId", "");
+            return UnityMcpUtility.FindGameObject(path, instanceId, entityId);
+        }
+
+        public static McpResponse GetProperties(McpRequest req)
+        {
             var componentName = req.GetStringParam("component", "");
-            var obj = UnityMcpUtility.FindGameObject(path, req.GetIntParam("instanceId", -1));
+            var obj = ResolveObject(req);
 
             if (obj == null)
             {
-                return McpResponse.Err(req.Id, $"Object not found: '{path}'");
+                return McpResponse.Err(req.Id, $"Object not found: '{req.GetStringParam("path", "")}'");
             }
 
             var result = new Dictionary<string, object>();
@@ -24,7 +34,7 @@ namespace GameEngineMCP
             {
                 var comp = FindComponent(obj, componentName);
                 if (comp == null)
-                    return McpResponse.Err(req.Id, $"Component '{componentName}' not found on '{path}'");
+                    return McpResponse.Err(req.Id, $"Component '{componentName}' not found on '{req.GetStringParam("path", "")}'");
 
                 result["properties"] = SerializeComponentProperties(comp);
                 result["component"] = comp.GetType().Name;
@@ -50,18 +60,17 @@ namespace GameEngineMCP
 
         public static McpResponse SetProperty(McpRequest req)
         {
-            var path = req.GetStringParam("path", "");
             var componentName = req.GetStringParam("component", "");
             var propertyName = req.GetStringParam("property", "");
             var value = req.Params != null && req.Params.ContainsKey("value") ? req.Params["value"] : null;
 
-            var obj = UnityMcpUtility.FindGameObject(path, req.GetIntParam("instanceId", -1));
+            var obj = ResolveObject(req);
             if (obj == null)
-                return McpResponse.Err(req.Id, $"Object not found: '{path}'");
+                return McpResponse.Err(req.Id, $"Object not found: '{req.GetStringParam("path", "")}'");
 
             var comp = FindComponent(obj, componentName);
             if (comp == null)
-                return McpResponse.Err(req.Id, $"Component '{componentName}' not found on '{path}'");
+                return McpResponse.Err(req.Id, $"Component '{componentName}' not found on '{req.GetStringParam("path", "")}'");
 
             // Try SerializedObject approach first (works with Unity built-in components)
             var so = new SerializedObject(comp);
@@ -76,7 +85,7 @@ namespace GameEngineMCP
                 so.ApplyModifiedProperties();
                 return McpResponse.Ok(req.Id, new Dictionary<string, object>
                 {
-                    ["path"] = path,
+                    ["path"] = req.GetStringParam("path", ""),
                     ["component"] = componentName,
                     ["property"] = propertyName,
                     ["value"] = value
@@ -94,7 +103,7 @@ namespace GameEngineMCP
                 EditorUtility.SetDirty(comp);
                 return McpResponse.Ok(req.Id, new Dictionary<string, object>
                 {
-                    ["path"] = path,
+                    ["path"] = req.GetStringParam("path", ""),
                     ["component"] = componentName,
                     ["property"] = propertyName,
                     ["value"] = value
@@ -111,7 +120,7 @@ namespace GameEngineMCP
                 EditorUtility.SetDirty(comp);
                 return McpResponse.Ok(req.Id, new Dictionary<string, object>
                 {
-                    ["path"] = path,
+                    ["path"] = req.GetStringParam("path", ""),
                     ["component"] = componentName,
                     ["property"] = propertyName,
                     ["value"] = value
@@ -123,17 +132,16 @@ namespace GameEngineMCP
 
         public static McpResponse SetProperties(McpRequest req)
         {
-            var path = req.GetStringParam("path", "");
             var componentName = req.GetStringParam("component", "");
             var properties = req.GetDictParam("properties");
 
-            var obj = UnityMcpUtility.FindGameObject(path, req.GetIntParam("instanceId", -1));
+            var obj = ResolveObject(req);
             if (obj == null)
-                return McpResponse.Err(req.Id, $"Object not found: '{path}'");
+                return McpResponse.Err(req.Id, $"Object not found: '{req.GetStringParam("path", "")}'");
 
             var comp = FindComponent(obj, componentName);
             if (comp == null)
-                return McpResponse.Err(req.Id, $"Component '{componentName}' not found on '{path}'");
+                return McpResponse.Err(req.Id, $"Component '{componentName}' not found on '{req.GetStringParam("path", "")}'");
 
             var so = new SerializedObject(comp);
             var set = new List<string>();

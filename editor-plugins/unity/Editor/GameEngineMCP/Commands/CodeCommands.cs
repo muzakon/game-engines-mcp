@@ -15,13 +15,8 @@ namespace GameEngineMCP
                 return McpResponse.Err(req.Id, "No code provided");
 
             if (language.ToLower() == "python")
-            {
                 return ExecutePython(req, code);
-            }
 
-            // C# execution via reflection/compilation
-            // For safety and simplicity, we support a limited set of useful operations
-            // via a simple expression evaluator approach.
             return ExecuteCSharp(req, code);
         }
 
@@ -29,11 +24,6 @@ namespace GameEngineMCP
         {
             try
             {
-                // Log to console as the most common use case
-                // Users can write UnityEngine.Debug.Log("...") directly
-                var output = new System.Text.StringBuilder();
-
-                // Try evaluating simple expressions
                 var trimmed = code.Trim();
 
                 // Handle Debug.Log specifically
@@ -53,13 +43,13 @@ namespace GameEngineMCP
                     }
                 }
 
-                // General case: wrap in a method and report
+                // General case: log and report
                 Debug.Log($"[GameEngineMCP Execute] {code}");
                 return McpResponse.Ok(req.Id, new Dictionary<string, object>
                 {
                     ["output"] = $"Executed: {code}",
                     ["language"] = "csharp",
-                    ["note"] = "For complex C# execution, consider using a full scripting plugin"
+                    ["note"] = "For script creation, write .cs files directly to Assets/ via the file system"
                 });
             }
             catch (System.Exception ex)
@@ -74,11 +64,12 @@ namespace GameEngineMCP
 
         private static McpResponse ExecutePython(McpRequest req, string code)
         {
-            // Check if Python for Unity is available
-            var pythonRunnerType = System.Type.GetType("UnityEditor.Scripting.Python.PythonRunner, UnityEditor.Scripting.Python");
+            var pythonRunnerType = System.Type.GetType(
+                "UnityEditor.Scripting.Python.PythonRunner, UnityEditor.Scripting.Python");
             if (pythonRunnerType == null)
             {
-                return McpResponse.Err(req.Id, "Python for Unity is not installed. Install the 'com.unity.scripting.python' package.");
+                return McpResponse.Err(req.Id,
+                    "Python for Unity is not installed. Install the 'com.unity.scripting.python' package.");
             }
 
             try
@@ -86,9 +77,7 @@ namespace GameEngineMCP
                 var runMethod = pythonRunnerType.GetMethod("RunString",
                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
                 if (runMethod == null)
-                {
                     return McpResponse.Err(req.Id, "Cannot find PythonRunner.RunString method");
-                }
 
                 var result = runMethod.Invoke(null, new object[] { code });
                 return McpResponse.Ok(req.Id, new Dictionary<string, object>

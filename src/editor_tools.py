@@ -855,7 +855,9 @@ def register_editor_tools(mcp: FastMCP) -> None:
             return _handle_error(exc, engine, "goto_line")
 
     @mcp.tool()
-    def editor_inspect_object(engine: str, path: str, for_property: str = "", inspector_only: bool = False) -> str:
+    def editor_inspect_object(
+        engine: str, path: str, for_property: str = "", inspector_only: bool = False
+    ) -> str:
         """Show an object in the editor's inspector panel.
 
         Examples:
@@ -866,7 +868,11 @@ def register_editor_tools(mcp: FastMCP) -> None:
         if not bridge:
             return _not_connected_msg(engine)
         try:
-            _run(bridge.inspect_object(path, for_property=for_property, inspector_only=inspector_only))
+            _run(
+                bridge.inspect_object(
+                    path, for_property=for_property, inspector_only=inspector_only
+                )
+            )
             return f"Inspecting '{path}'"
         except Exception as exc:
             return _handle_error(exc, engine, "inspect_object")

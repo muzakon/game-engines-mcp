@@ -118,7 +118,8 @@ namespace GameEngineMCP
         {
             var path = req.GetStringParam("path", "");
             var instanceId = req.GetIntParam("instanceId", -1);
-            Object target = instanceId > 0 ? EditorUtility.InstanceIDToObject(instanceId) : null;
+            var entityId = req.GetStringParam("entityId", "");
+            Object target = UnityMcpUtility.ObjectFromId(entityId, instanceId);
             if (target == null && !string.IsNullOrWhiteSpace(path))
                 target = AssetDatabase.LoadAssetAtPath<Object>(UnityMcpUtility.NormalizeAssetPath(path)) ??
                          UnityMcpUtility.FindGameObject(path);

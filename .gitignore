@@ -20,3 +20,5 @@ data/vectors/
 # User-specific engine preferences
 engines.local.yaml
 .ruff_cache
+*.meta
+*.DS_Store

@@ -27,7 +27,9 @@ class UnityBridge(EditorBridge):
     # Scene management
     # ------------------------------------------------------------------
 
-    async def new_scene(self, setup: str = "default", mode: str = "single") -> dict[str, Any]:
+    async def new_scene(
+        self, setup: str = "default", mode: str = "single"
+    ) -> dict[str, Any]:
         resp = await self.send_command("new_scene", {"setup": setup, "mode": mode})
         self._check_error(resp)
         return resp.data
@@ -37,7 +39,9 @@ class UnityBridge(EditorBridge):
         self._check_error(resp)
         return resp.data
 
-    async def close_scene(self, path: str = "", remove_scene: bool = True) -> dict[str, Any]:
+    async def close_scene(
+        self, path: str = "", remove_scene: bool = True
+    ) -> dict[str, Any]:
         resp = await self.send_command(
             "close_scene", {"path": path, "removeScene": remove_scene}
         )
@@ -91,13 +95,18 @@ class UnityBridge(EditorBridge):
         return resp.data
 
     async def ping_object(
-        self, path: str | None = None, instance_id: int | None = None
+        self,
+        path: str | None = None,
+        instance_id: int | None = None,
+        entity_id: str | None = None,
     ) -> dict[str, Any]:
         params: dict[str, Any] = {}
         if path:
             params["path"] = path
         if instance_id is not None:
             params["instanceId"] = instance_id
+        if entity_id:
+            params["entityId"] = entity_id
         resp = await self.send_command("ping_object", params)
         self._check_error(resp)
         return resp.data
@@ -157,7 +166,9 @@ class UnityBridge(EditorBridge):
         return resp.data
 
     async def create_folder(self, parent: str, name: str) -> dict[str, Any]:
-        resp = await self.send_command("create_folder", {"parent": parent, "name": name})
+        resp = await self.send_command(
+            "create_folder", {"parent": parent, "name": name}
+        )
         self._check_error(resp)
         return resp.data
 

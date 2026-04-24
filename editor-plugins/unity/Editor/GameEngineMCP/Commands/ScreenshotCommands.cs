@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
@@ -65,7 +64,8 @@ namespace GameEngineMCP
             var gameViewType = assembly.GetType("UnityEditor.GameView");
             if (gameViewType == null) return null;
 
-            return EditorWindow.GetWindow(gameViewType, false, null, false);
+            // Use FindObjectOfType to locate an existing GameView without creating one.
+            return UnityEngine.Object.FindObjectOfType(gameViewType) as EditorWindow;
         }
     }
 }

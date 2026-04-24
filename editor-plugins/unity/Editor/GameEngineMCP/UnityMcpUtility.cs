@@ -9,13 +9,10 @@ namespace GameEngineMCP
 {
     internal static class UnityMcpUtility
     {
-        public static GameObject FindGameObject(string path, int instanceId = -1)
+        public static GameObject FindGameObject(string path, int instanceId = -1, string entityId = "")
         {
-            if (instanceId > 0)
-            {
-                var byId = EditorUtility.InstanceIDToObject(instanceId) as GameObject;
-                if (byId != null) return byId;
-            }
+            var byId = ObjectFromId(entityId, instanceId) as GameObject;
+            if (byId != null) return byId;
 
             if (string.IsNullOrWhiteSpace(path)) return null;
 
@@ -32,6 +29,84 @@ namespace GameEngineMCP
             }
 
             return null;
+        }
+
+        public static UnityEngine.Object ObjectFromId(string entityId, int instanceId = -1)
+        {
+            if (TryParseEntityId(entityId, out var rawEntityId) || (instanceId > 0 && TryParseEntityId(instanceId.ToString(), out rawEntityId)))
+            {
+                var obj = EntityIdToObject(rawEntityId);
+                if (obj != null) return obj;
+            }
+
+            if (instanceId > 0)
+                return InstanceIdToObject(instanceId);
+
+            return null;
+        }
+
+        public static object GetObjectId(UnityEngine.Object obj)
+        {
+            if (obj == null) return null;
+
+            var entityId = GetEntityIdRaw(obj);
+            if (!string.IsNullOrEmpty(entityId))
+                return entityId;
+
+            var legacyId = GetLegacyInstanceId(obj);
+            return legacyId > 0 ? (object)legacyId : null;
+        }
+
+        private static bool TryParseEntityId(string value, out ulong entityId)
+        {
+            entityId = 0;
+            return !string.IsNullOrWhiteSpace(value) && ulong.TryParse(value, out entityId);
+        }
+
+        private static UnityEngine.Object EntityIdToObject(ulong rawEntityId)
+        {
+            var entityIdType = GetEntityIdType();
+            if (entityIdType == null) return null;
+
+            var fromULong = entityIdType.GetMethod("FromULong", new[] { typeof(ulong) });
+            var entityIdToObject = typeof(EditorUtility).GetMethod("EntityIdToObject", new[] { entityIdType });
+            if (fromULong == null || entityIdToObject == null) return null;
+
+            var entityId = fromULong.Invoke(null, new object[] { rawEntityId });
+            return entityIdToObject.Invoke(null, new[] { entityId }) as UnityEngine.Object;
+        }
+
+        private static UnityEngine.Object InstanceIdToObject(int instanceId)
+        {
+            var method = typeof(EditorUtility).GetMethod("InstanceIDToObject", new[] { typeof(int) });
+            return method?.Invoke(null, new object[] { instanceId }) as UnityEngine.Object;
+        }
+
+        private static string GetEntityIdRaw(UnityEngine.Object obj)
+        {
+            var getEntityId = typeof(UnityEngine.Object).GetMethod("GetEntityId", Type.EmptyTypes);
+            if (getEntityId == null) return "";
+
+            var entityId = getEntityId.Invoke(obj, null);
+            if (entityId == null) return "";
+
+            var entityIdType = entityId.GetType();
+            var toULong = entityIdType.GetMethod("ToULong", new[] { entityIdType });
+            var raw = toULong?.Invoke(null, new[] { entityId });
+            return raw?.ToString() ?? "";
+        }
+
+        private static Type GetEntityIdType()
+        {
+            return typeof(UnityEngine.Object).Assembly.GetType("UnityEngine.EntityId") ??
+                   Type.GetType("UnityEngine.EntityId, UnityEngine.CoreModule");
+        }
+
+        private static int GetLegacyInstanceId(UnityEngine.Object obj)
+        {
+            var method = typeof(UnityEngine.Object).GetMethod("GetInstanceID", Type.EmptyTypes);
+            var raw = method?.Invoke(obj, null);
+            return raw is int id ? id : -1;
         }
 
         public static string GetHierarchyPath(GameObject obj)
@@ -93,6 +168,7 @@ namespace GameEngineMCP
             {
                 ["name"] = obj.name,
                 ["type"] = obj.GetType().Name,
+                ["entityId"] = GetObjectId(obj),
                 ["instanceId"] = obj.GetInstanceID(),
                 ["path"] = path ?? ""
             };
