@@ -23,6 +23,7 @@ from src.bridges.base import (
 )
 from src.bridges.registry import BridgeRegistry
 from src.bridges.unity_bridge import UnityBridge
+from src.bridges.unreal_commands import UnrealBridge as UnrealBridgeCommands
 from src.bridge_config import load_bridge_config
 
 
@@ -274,6 +275,68 @@ class TestUnityBridgeCommands:
                 {"path": "Assets/Main.unity", "recursive": True},
             ),
         ]
+
+
+class TestUnrealBridgeCommands:
+    def test_unreal_engine_name(self):
+        bridge = UnrealBridgeCommands()
+        assert bridge.engine == "unreal"
+
+    def test_unreal_specific_methods_send_expected_commands(self):
+        bridge = UnrealBridgeCommands()
+        sent: list[tuple[str, dict]] = []
+
+        async def _send(command, params=None, timeout=30.0):
+            sent.append((command, params or {}))
+            return McpResponse(0, "ok", {"ok": True})
+
+        bridge.send_command = _send
+
+        assert _run(bridge.new_level("/Game/Maps/Test"))["ok"]
+        assert _run(bridge.open_level("/Game/Maps/Main"))["ok"]
+        assert _run(bridge.save_all_levels())["ok"]
+        assert _run(bridge.find_actors(name="Player", limit=10))["ok"]
+        assert _run(bridge.duplicate_actor("Cube1", name="Cube2"))["ok"]
+        assert _run(bridge.set_actor_visible("Player", False))["ok"]
+        assert _run(bridge.get_asset("/Game/Meshes/Hero"))["ok"]
+        assert _run(bridge.delete_asset("/Game/OldAsset"))["ok"]
+        assert _run(bridge.move_asset("/Game/A", "/Game/B"))["ok"]
+        assert _run(bridge.rename_asset("/Game/A", "NewA"))["ok"]
+        assert _run(bridge.duplicate_asset("/Game/A", "/Game/A_Copy"))["ok"]
+        assert _run(bridge.import_asset("/Game/Textures/Diffuse"))["ok"]
+        assert _run(bridge.get_viewport_camera())["ok"]
+        assert _run(bridge.set_viewport_camera(location=[0, 0, 500]))["ok"]
+        assert _run(bridge.get_selection())["ok"]
+        assert _run(bridge.set_selection(["Player", "Cube1"]))["ok"]
+        assert _run(bridge.get_content_directory("/Game/"))["ok"]
+        assert _run(bridge.get_project_dir())["ok"]
+
+        assert sent == [
+            ("new_level", {"path": "/Game/Maps/Test"}),
+            ("open_level", {"path": "/Game/Maps/Main"}),
+            ("save_all_levels", {}),
+            ("find_actors", {"name": "Player", "limit": 10}),
+            ("duplicate_actor", {"path": "Cube1", "name": "Cube2"}),
+            ("set_actor_visible", {"path": "Player", "visible": False}),
+            ("get_asset", {"path": "/Game/Meshes/Hero"}),
+            ("delete_asset", {"path": "/Game/OldAsset"}),
+            ("move_asset", {"source": "/Game/A", "destination": "/Game/B"}),
+            ("rename_asset", {"path": "/Game/A", "name": "NewA"}),
+            ("duplicate_asset", {"source": "/Game/A", "destination": "/Game/A_Copy"}),
+            ("import_asset", {"path": "/Game/Textures/Diffuse"}),
+            ("get_viewport_camera", {}),
+            ("set_viewport_camera", {"location": [0, 0, 500]}),
+            ("get_selection", {}),
+            ("set_selection", {"paths": ["Player", "Cube1"]}),
+            ("get_content_directory", {"path": "/Game/"}),
+            ("get_project_dir", {}),
+        ]
+
+    def test_unreal_bridge_reexport(self):
+        """unreal_bridge.py re-exports the same class."""
+        from src.bridges.unreal_bridge import UnrealBridge
+
+        assert UnrealBridge is UnrealBridgeCommands
 
 
 # ---------------------------------------------------------------------------

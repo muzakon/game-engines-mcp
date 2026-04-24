@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -36,7 +37,6 @@ def _bridge(engine: str):
 # in a background thread.  This avoids "Future attached to a different
 # loop" errors because every bridge coroutine executes on the same loop
 # that owns the TCP reader/writer objects.
-import threading
 
 _bridge_loop: asyncio.AbstractEventLoop | None = None
 _bridge_thread: threading.Thread | None = None
@@ -115,6 +115,7 @@ def register_editor_tools(mcp: FastMCP) -> None:
 
         # Load config defaults for both host and port
         from .bridge_config import load_bridge_config
+
         config = load_bridge_config()
         engine_cfg = config.get(engine, {})
 
@@ -919,6 +920,350 @@ def register_editor_tools(mcp: FastMCP) -> None:
             return f"'{path}' marked as {state}"
         except Exception as exc:
             return _handle_error(exc, engine, "set_object_edited")
+
+    # ------------------------------------------------------------------
+    # Unreal Engine specific tools
+    # ------------------------------------------------------------------
+
+    @mcp.tool()
+    def editor_new_level(engine: str, path: str) -> str:
+        """Create a new level in the editor.
+
+        Examples:
+          - engine='unreal', path='/Game/Maps/TestLevel'
+          - engine='unreal', path='Maps/MyLevel'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            data = _run(bridge.new_level(path))
+            return f"Created level: {data.get('path', path)}"
+        except Exception as exc:
+            return _handle_error(exc, engine, "new_level")
+
+    @mcp.tool()
+    def editor_open_level(engine: str, path: str) -> str:
+        """Open a level in the editor.
+
+        Examples:
+          - engine='unreal', path='/Game/Maps/MainMenu'
+          - engine='unreal', path='Maps/Level1'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            data = _run(bridge.open_level(path))
+            return f"Opened level: {data.get('path', path)}"
+        except Exception as exc:
+            return _handle_error(exc, engine, "open_level")
+
+    @mcp.tool()
+    def editor_save_all_levels(engine: str) -> str:
+        """Save all dirty levels in the editor.
+
+        Examples:
+          - engine='unreal'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            _run(bridge.save_all_levels())
+            return f"{engine} editor: all levels saved"
+        except Exception as exc:
+            return _handle_error(exc, engine, "save_all_levels")
+
+    @mcp.tool()
+    def editor_find_actors(
+        engine: str,
+        name: str | None = None,
+        class_type: str | None = None,
+        tag: str | None = None,
+        limit: int = 100,
+    ) -> str:
+        """Search for actors in the current level by name, class, or tag.
+
+        Examples:
+          - engine='unreal', name='Player'
+          - engine='unreal', class_type='StaticMeshActor', limit=20
+          - engine='unreal', tag='Enemy'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            data = _run(
+                bridge.find_actors(
+                    name=name, class_type=class_type, tag=tag, limit=limit
+                )
+            )
+            actors = data.get("actors", [])
+            if not actors:
+                return "No actors found matching criteria"
+            lines = [f"Found {len(actors)} actors:"]
+            for a in actors:
+                lines.append(f"  {a.get('name', '?')} ({a.get('type', '?')})")
+            return "\n".join(lines)
+        except Exception as exc:
+            return _handle_error(exc, engine, "find_actors")
+
+    @mcp.tool()
+    def editor_duplicate_actor(engine: str, path: str, name: str | None = None) -> str:
+        """Duplicate an actor in the level.
+
+        Examples:
+          - engine='unreal', path='Cube_1'
+          - engine='unreal', path='Cube_1', name='Cube_Copy'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            data = _run(bridge.duplicate_actor(path, name=name))
+            return f"Duplicated actor: {_format_object_brief(data)}"
+        except Exception as exc:
+            return _handle_error(exc, engine, "duplicate_actor")
+
+    @mcp.tool()
+    def editor_set_actor_visible(engine: str, path: str, visible: bool = True) -> str:
+        """Set actor visibility in the editor.
+
+        Examples:
+          - engine='unreal', path='DebugCube', visible=False
+          - engine='unreal', path='Player', visible=True
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            _run(bridge.set_actor_visible(path, visible))
+            state = "visible" if visible else "hidden"
+            return f"Actor '{path}' set to {state}"
+        except Exception as exc:
+            return _handle_error(exc, engine, "set_actor_visible")
+
+    @mcp.tool()
+    def editor_get_asset(engine: str, path: str) -> str:
+        """Get metadata about a specific asset.
+
+        Examples:
+          - engine='unreal', path='/Game/Characters/Hero'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            data = _run(bridge.get_asset(path))
+            return f"Asset: {data.get('name', '?')} ({data.get('type', '?')}) at {data.get('path', '?')}"
+        except Exception as exc:
+            return _handle_error(exc, engine, "get_asset")
+
+    @mcp.tool()
+    def editor_delete_asset(engine: str, path: str) -> str:
+        """Delete an asset from the project.
+
+        Examples:
+          - engine='unreal', path='/Game/OldMaterial'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            _run(bridge.delete_asset(path))
+            return f"Deleted asset: {path}"
+        except Exception as exc:
+            return _handle_error(exc, engine, "delete_asset")
+
+    @mcp.tool()
+    def editor_move_asset(engine: str, source: str, destination: str) -> str:
+        """Move an asset to a new path.
+
+        Examples:
+          - engine='unreal', source='/Game/Temp/Mesh1', destination='/Game/Meshes/Mesh1'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            _run(bridge.move_asset(source, destination))
+            return f"Moved asset from {source} to {destination}"
+        except Exception as exc:
+            return _handle_error(exc, engine, "move_asset")
+
+    @mcp.tool()
+    def editor_rename_asset(engine: str, path: str, name: str) -> str:
+        """Rename an asset.
+
+        Examples:
+          - engine='unreal', path='/Game/Meshes/OldName', name='NewName'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            _run(bridge.rename_asset(path, name))
+            return f"Renamed asset '{path}' to '{name}'"
+        except Exception as exc:
+            return _handle_error(exc, engine, "rename_asset")
+
+    @mcp.tool()
+    def editor_duplicate_asset(engine: str, source: str, destination: str) -> str:
+        """Duplicate an asset.
+
+        Examples:
+          - engine='unreal', source='/Game/Materials/Base', destination='/Game/Materials/Base_Copy'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            _run(bridge.duplicate_asset(source, destination))
+            return f"Duplicated asset from {source} to {destination}"
+        except Exception as exc:
+            return _handle_error(exc, engine, "duplicate_asset")
+
+    @mcp.tool()
+    def editor_import_asset(engine: str, path: str) -> str:
+        """Import or reimport an asset.
+
+        Examples:
+          - engine='unreal', path='/Game/Textures/Diffuse'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            _run(bridge.import_asset(path))
+            return f"Imported asset: {path}"
+        except Exception as exc:
+            return _handle_error(exc, engine, "import_asset")
+
+    @mcp.tool()
+    def editor_get_viewport_camera(engine: str) -> str:
+        """Get the editor viewport camera location and rotation.
+
+        Examples:
+          - engine='unreal'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            data = _run(bridge.get_viewport_camera())
+            loc = data.get("location", [0, 0, 0])
+            rot = data.get("rotation", [0, 0, 0])
+            return f"Viewport camera: location={loc}, rotation={rot}"
+        except Exception as exc:
+            return _handle_error(exc, engine, "get_viewport_camera")
+
+    @mcp.tool()
+    def editor_set_viewport_camera(
+        engine: str,
+        location: list[float] | None = None,
+        rotation: list[float] | None = None,
+    ) -> str:
+        """Set the editor viewport camera position and rotation.
+
+        Examples:
+          - engine='unreal', location=[0, 0, 500], rotation=[-45, 0, 0]
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            _run(bridge.set_viewport_camera(location=location, rotation=rotation))
+            parts = ["Viewport camera updated"]
+            if location:
+                parts.append(f"location={location}")
+            if rotation:
+                parts.append(f"rotation={rotation}")
+            return ", ".join(parts)
+        except Exception as exc:
+            return _handle_error(exc, engine, "set_viewport_camera")
+
+    @mcp.tool()
+    def editor_get_selection(engine: str) -> str:
+        """Get the currently selected actors in the editor.
+
+        Examples:
+          - engine='unreal'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            data = _run(bridge.get_selection())
+            actors = data.get("actors", [])
+            if not actors:
+                return "No actors selected"
+            lines = [f"Selected actors ({len(actors)}):"]
+            for a in actors:
+                lines.append(f"  {a.get('name', '?')} ({a.get('type', '?')})")
+            return "\n".join(lines)
+        except Exception as exc:
+            return _handle_error(exc, engine, "get_selection")
+
+    @mcp.tool()
+    def editor_set_selection(engine: str, paths: list[str]) -> str:
+        """Select actors in the editor by name or path.
+
+        Examples:
+          - engine='unreal', paths=['Player', 'Cube_1']
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            data = _run(bridge.set_selection(paths))
+            count = data.get("count", 0)
+            return f"Selected {count} actors"
+        except Exception as exc:
+            return _handle_error(exc, engine, "set_selection")
+
+    @mcp.tool()
+    def editor_get_content_directory(engine: str, path: str = "/Game/") -> str:
+        """List assets in a content directory.
+
+        Examples:
+          - engine='unreal', path='/Game/Characters'
+          - engine='unreal', path='/Game/'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            data = _run(bridge.get_content_directory(path))
+            assets = data.get("assets", [])
+            if not assets:
+                return f"No assets found in '{path}'"
+            lines = [f"Assets in '{path}' ({len(assets)} items):"]
+            for a in assets:
+                lines.append(f"  {a.get('name', '?')} ({a.get('type', '?')})")
+            return "\n".join(lines)
+        except Exception as exc:
+            return _handle_error(exc, engine, "get_content_directory")
+
+    @mcp.tool()
+    def editor_get_project_dir(engine: str) -> str:
+        """Get the Unreal Engine project directory paths.
+
+        Examples:
+          - engine='unreal'
+        """
+        bridge = _bridge(engine)
+        if not bridge:
+            return _not_connected_msg(engine)
+        try:
+            data = _run(bridge.get_project_dir())
+            lines = [f"{engine} Project Paths:"]
+            for key in ("projectDir", "contentDir", "configDir", "projectFilePath"):
+                if key in data:
+                    lines.append(f"  {key}: {data[key]}")
+            return "\n".join(lines)
+        except Exception as exc:
+            return _handle_error(exc, engine, "get_project_dir")
 
 
 # ---------------------------------------------------------------------------

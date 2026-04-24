@@ -9,7 +9,7 @@ Each plugin opens a TCP server inside the editor that speaks a shared JSON wire 
 | Engine | Status | Port | Directory |
 |--------|--------|------|-----------|
 | **Unity** | Ready | 9877 | [unity/](unity/) |
-| **Unreal Engine** | Planned | 9878 | `unreal/` (not yet implemented) |
+| **Unreal Engine** | Ready | 9878 | [unreal/](unreal/) |
 | **Godot** | Ready | 9879 | [godot/](godot/) |
 
 ## Wire Protocol
