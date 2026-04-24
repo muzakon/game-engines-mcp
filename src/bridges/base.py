@@ -3,6 +3,13 @@
 Every concrete bridge (Unity, Unreal, Godot) inherits from
 :class:`EditorBridge` and implements the TCP client that talks
 to the engine-specific editor plugin.
+
+Engine-specific commands live in separate subclass files:
+- ``godot_commands.GodotBridge``
+- ``unity_bridge.UnityBridge``
+- ``unreal_bridge.UnrealBridge``
+
+Only commands shared by *all* engines live in this base class.
 """
 
 from __future__ import annotations
@@ -24,10 +31,10 @@ class NotConnectedError(ConnectionError):
 class EditorBridge(ABC):
     """Base class for a live editor connection.
 
-    Subclasses must implement :meth:`_open_connection` and
-    :meth:`_close_connection` to manage the underlying socket.
-    The default :meth:`send_command` handles the JSON wire protocol
-    over a raw TCP stream.
+    Provides the TCP wire protocol and convenience methods for
+    commands that **all** engines implement.  Engine-specific
+    commands should be added to the corresponding subclass
+    (e.g. ``GodotBridge``, ``UnityBridge``).
     """
 
     engine: str = ""
@@ -143,7 +150,7 @@ class EditorBridge(ABC):
             )
 
     # ------------------------------------------------------------------
-    # Convenience command methods
+    # Shared command methods (implemented by all engines)
     # ------------------------------------------------------------------
 
     async def ping(self) -> dict[str, Any]:
@@ -308,154 +315,6 @@ class EditorBridge(ABC):
 
     async def run_tests(self, test_mode: str = "edit") -> dict[str, Any]:
         resp = await self.send_command("run_tests", {"test_mode": test_mode})
-        self._check_error(resp)
-        return resp.data
-
-    async def play_custom_scene(self, path: str) -> dict[str, Any]:
-        resp = await self.send_command("play_custom_scene", {"path": path})
-        self._check_error(resp)
-        return resp.data
-
-    async def save_all_scenes(self) -> dict[str, Any]:
-        resp = await self.send_command("save_all_scenes")
-        self._check_error(resp)
-        return resp.data
-
-    async def restart_editor(self, save: bool = True) -> dict[str, Any]:
-        resp = await self.send_command("restart_editor", {"save": save})
-        self._check_error(resp)
-        return resp.data
-
-    async def get_current_feature_profile(self) -> dict[str, Any]:
-        resp = await self.send_command("get_current_feature_profile")
-        self._check_error(resp)
-        return resp.data
-
-    async def get_editor_paths(self) -> dict[str, Any]:
-        resp = await self.send_command("get_editor_paths")
-        self._check_error(resp)
-        return resp.data
-
-    async def is_plugin_enabled(self, plugin: str) -> dict[str, Any]:
-        resp = await self.send_command("is_plugin_enabled", {"plugin": plugin})
-        self._check_error(resp)
-        return resp.data
-
-    async def set_plugin_enabled(self, plugin: str, enabled: bool) -> dict[str, Any]:
-        resp = await self.send_command("set_plugin_enabled", {"plugin": plugin, "enabled": enabled})
-        self._check_error(resp)
-        return resp.data
-
-    async def get_editor_theme(self) -> dict[str, Any]:
-        resp = await self.send_command("get_editor_theme")
-        self._check_error(resp)
-        return resp.data
-
-    async def get_editor_language(self) -> dict[str, Any]:
-        resp = await self.send_command("get_editor_language")
-        self._check_error(resp)
-        return resp.data
-
-    async def is_multi_window_enabled(self) -> dict[str, Any]:
-        resp = await self.send_command("is_multi_window_enabled")
-        self._check_error(resp)
-        return resp.data
-
-    async def inspect_object(self, path: str, for_property: str = "", inspector_only: bool = False) -> dict[str, Any]:
-        params: dict[str, Any] = {"path": path}
-        if for_property:
-            params["for_property"] = for_property
-        if inspector_only:
-            params["inspector_only"] = inspector_only
-        resp = await self.send_command("inspect_object", params)
-        self._check_error(resp)
-        return resp.data
-
-    async def set_object_edited(self, path: str, edited: bool) -> dict[str, Any]:
-        resp = await self.send_command("set_object_edited", {"path": path, "edited": edited})
-        self._check_error(resp)
-        return resp.data
-
-    async def is_object_edited(self, path: str) -> dict[str, Any]:
-        resp = await self.send_command("is_object_edited", {"path": path})
-        self._check_error(resp)
-        return resp.data
-
-    async def get_snap_settings(self) -> dict[str, Any]:
-        resp = await self.send_command("get_snap_settings")
-        self._check_error(resp)
-        return resp.data
-
-    async def push_toast(self, message: str, severity: int = 0) -> dict[str, Any]:
-        resp = await self.send_command("push_toast", {"message": message, "severity": severity})
-        self._check_error(resp)
-        return resp.data
-
-    async def navigate_filesystem(self, path: str) -> dict[str, Any]:
-        resp = await self.send_command("navigate_filesystem", {"path": path})
-        self._check_error(resp)
-        return resp.data
-
-    async def scan_filesystem(self) -> dict[str, Any]:
-        resp = await self.send_command("scan_filesystem")
-        self._check_error(resp)
-        return resp.data
-
-    async def scan_sources(self) -> dict[str, Any]:
-        resp = await self.send_command("scan_sources")
-        self._check_error(resp)
-        return resp.data
-
-    async def reimport_files(self, files: list[str]) -> dict[str, Any]:
-        resp = await self.send_command("reimport_files", {"files": files})
-        self._check_error(resp)
-        return resp.data
-
-    async def get_file_type(self, path: str) -> dict[str, Any]:
-        resp = await self.send_command("get_file_type", {"path": path})
-        self._check_error(resp)
-        return resp.data
-
-    async def get_filesystem_directory(self, path: str = "") -> dict[str, Any]:
-        params: dict[str, Any] = {}
-        if path:
-            params["path"] = path
-        resp = await self.send_command("get_filesystem_directory", params)
-        self._check_error(resp)
-        return resp.data
-
-    async def get_current_script(self) -> dict[str, Any]:
-        resp = await self.send_command("get_current_script")
-        self._check_error(resp)
-        return resp.data
-
-    async def get_open_scripts(self) -> dict[str, Any]:
-        resp = await self.send_command("get_open_scripts")
-        self._check_error(resp)
-        return resp.data
-
-    async def get_unsaved_script_files(self) -> dict[str, Any]:
-        resp = await self.send_command("get_unsaved_script_files")
-        self._check_error(resp)
-        return resp.data
-
-    async def save_all_scripts(self) -> dict[str, Any]:
-        resp = await self.send_command("save_all_scripts")
-        self._check_error(resp)
-        return resp.data
-
-    async def reload_open_files(self) -> dict[str, Any]:
-        resp = await self.send_command("reload_open_files")
-        self._check_error(resp)
-        return resp.data
-
-    async def get_breakpoints(self) -> dict[str, Any]:
-        resp = await self.send_command("get_breakpoints")
-        self._check_error(resp)
-        return resp.data
-
-    async def goto_line(self, line: int) -> dict[str, Any]:
-        resp = await self.send_command("goto_line", {"line": line})
         self._check_error(resp)
         return resp.data
 

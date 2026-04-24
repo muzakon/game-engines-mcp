@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 _BRIDGE_CLASSES: dict[str, str] = {
     "unity": "src.bridges.unity_bridge:UnityBridge",
     "unreal": "src.bridges.unreal_bridge:UnrealBridge",
-    "godot": "src.bridges.godot_bridge:GodotBridge",
+    "godot": "src.bridges.godot_commands:GodotBridge",
 }
 
 
