@@ -31,10 +31,26 @@ func route(request: Dictionary, context: RefCounted) -> Dictionary:
 			return _editor_commands.get_editor_info(context)
 		"play":
 			return _editor_commands.play(context)
+		"play_current_scene":
+			return _editor_commands.play_current_scene(context)
 		"pause":
 			return _editor_commands.pause(context)
 		"stop":
 			return _editor_commands.stop(context)
+		"open_scene":
+			return _editor_commands.open_scene(context, params)
+		"new_scene":
+			return _editor_commands.new_scene(context, params)
+		"reload_scene":
+			return _editor_commands.reload_scene(context, params)
+		"save_scene_as":
+			return _editor_commands.save_scene_as(context, params)
+		"mark_scene_as_unsaved":
+			return _editor_commands.mark_scene_as_unsaved(context)
+		"get_open_scene_roots":
+			return _editor_commands.get_open_scene_roots(context)
+		"get_editor_docks":
+			return _editor_commands.get_editor_docks(context)
 		"get_console_logs":
 			return _console_commands.get_console_logs(context, params)
 		"clear_console":

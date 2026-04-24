@@ -1,6 +1,6 @@
 # Game Engine MCP - Godot Plugin
 
-A Godot 4 editor addon that opens a TCP command port for live editor interaction via the [game-engine-mcp](../../) Python server. It lets AI assistants inspect scenes, manipulate nodes, save scenes, browse assets, capture editor viewports, and run bounded expression evaluation from the Godot editor.
+A Godot 4 editor addon that opens a TCP command port for live editor interaction via the [game-engine-mcp](../../) Python server. It lets AI assistants inspect scenes, manipulate nodes, open/reload/save scenes, browse assets, capture editor viewports, and run bounded expression evaluation from the Godot editor.
 
 Written entirely in GDScript using Godot's built-in `TCPServer` class. No external dependencies.
 
@@ -106,6 +106,7 @@ Once connected, the following tools work with `engine='godot'`:
 | `editor_get_console` | `editor_get_console(engine='godot', count=20, level='error')` |
 | `editor_clear_console` | `editor_clear_console(engine='godot')` |
 | `editor_get_scene_hierarchy` | `editor_get_scene_hierarchy(engine='godot')` |
+| `editor_get_open_scene_roots` | `editor_get_open_scene_roots(engine='godot')` |
 | `editor_get_object` | `editor_get_object(engine='godot', path='Player')` |
 | `editor_create_object` | `editor_create_object(engine='godot', name='Enemy', type='CharacterBody2D')` |
 | `editor_delete_object` | `editor_delete_object(engine='godot', path='OldNode')` |
@@ -113,12 +114,18 @@ Once connected, the following tools work with `engine='godot'`:
 | `editor_get_properties` | `editor_get_properties(engine='godot', path='Player')` |
 | `editor_move_object` | `editor_move_object(engine='godot', path='Player', position=[10, 0, 5])` |
 | `editor_play` | `editor_play(engine='godot')` |
+| `editor_play_current_scene` | `editor_play_current_scene(engine='godot')` |
 | `editor_pause` | `editor_pause(engine='godot')` |
 | `editor_stop` | `editor_stop(engine='godot')` |
+| `editor_open_scene` | `editor_open_scene(engine='godot', path='res://main.tscn')` |
+| `editor_reload_scene` | `editor_reload_scene(engine='godot', path='res://main.tscn')` |
+| `editor_save_scene_as` | `editor_save_scene_as(engine='godot', path='res://levels/level_1.tscn')` |
+| `editor_mark_scene_as_unsaved` | `editor_mark_scene_as_unsaved(engine='godot')` |
 | `editor_list_assets` | `editor_list_assets(engine='godot', path='res://scenes')` |
 | `editor_save_scene` | `editor_save_scene(engine='godot')` |
 | `editor_take_screenshot` | `editor_take_screenshot(engine='godot')` |
 | `editor_execute_code` | `editor_execute_code(engine='godot', code='print("hello")')` |
+| `editor_get_editor_docks` | `editor_get_editor_docks(engine='godot')` |
 | `editor_disconnect` | `editor_disconnect(engine='godot')` |
 
 ## Supported Node Types for Creation
@@ -199,6 +206,12 @@ addons/
 - Godot's public editor plugin API does not expose an editor-wide console stream.
 - `editor_get_console` returns Game Engine MCP internal logs and reports this limitation explicitly.
 - If you need richer logs, add project-specific logging hooks or a runtime-side bridge.
+
+### New scene command returns an error
+
+- This is intentional.
+- The public `EditorInterface` API exposes opening, reloading, and saving scenes, but not a direct "create blank scene" command.
+- Use `editor_open_scene`, or create a new scene through the editor UI and then mutate it via the bridge.
 
 ### Pause command returns an error
 
