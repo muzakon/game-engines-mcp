@@ -1,6 +1,6 @@
 # Game Engine MCP - Godot Plugin
 
-A Godot 4 editor addon that opens a TCP command port for live editor interaction via the [game-engine-mcp](../../) Python server. Lets AI assistants read console errors, browse scene trees, manipulate nodes, control play mode, and more.
+A Godot 4 editor addon that opens a TCP command port for live editor interaction via the [game-engine-mcp](../../) Python server. It lets AI assistants inspect scenes, manipulate nodes, save scenes, browse assets, capture editor viewports, and run bounded expression evaluation from the Godot editor.
 
 Written entirely in GDScript using Godot's built-in `TCPServer` class. No external dependencies.
 
@@ -24,7 +24,11 @@ YourGodotProject/
       mcp_server.gd
       console_capturer.gd
       commands/
-        commands.gd
+      core/
+      net/
+      routing/
+      services/
+      ui/
 ```
 
 2. Open your project in the Godot Editor.
@@ -47,9 +51,14 @@ If published to the Godot Asset Library:
 
 ### 1. Configure the plugin
 
-The addon starts automatically when enabled and listens on `127.0.0.1:9879`.
+The addon exposes a dock in the editor for:
 
-To change the port, edit the defaults in `mcp_server.gd` or call `start_server(host, port)` before the default auto-start.
+- host and port
+- auto-start
+- log buffer size
+- start/stop/restart
+
+Settings are stored locally in `user://game_engine_mcp.cfg`.
 
 ### 2. Configure the Python MCP server
 
@@ -143,9 +152,15 @@ The `create_object` tool supports these type shortcuts:
 addons/
   game_engine_mcp/
     plugin.cfg                # Godot plugin manifest
-    plugin.gd                 # EditorPlugin entry point (preloads McpServer)
-    mcp_server.gd             # TCP server + all command implementations
-    console_capturer.gd       # Console log ring buffer
+    plugin.gd                 # EditorPlugin lifecycle + dock registration
+    mcp_server.gd             # Coordinator for transport, routing, and services
+    console_capturer.gd       # Backward-compatible wrapper around console_service
+    core/                     # Settings + request/response primitives
+    net/                      # TCP transport + per-client buffering
+    routing/                  # Command router
+    commands/                 # Command handlers grouped by domain
+    services/                 # Scene/editor/object/property/etc. services
+    ui/                       # Dock UI
 ```
 
 ## Differences from Unity Plugin
@@ -155,10 +170,11 @@ addons/
 | Language | C# | GDScript |
 | JSON library | Newtonsoft.Json | Built-in `JSON` class |
 | TCP server | `System.Net.Sockets.TcpListener` | Built-in `TCPServer` |
-| Console capture | `Application.logMessageReceived` | `OS.print_error` / `OS.print_warning` signals |
+| Console capture | `Application.logMessageReceived` | Limited to plugin-internal logs via public editor API |
 | Property access | `SerializedObject` + reflection | `get_property_list()` + `set()` |
 | Code execution | Limited C# eval | `Expression` class (full GDScript eval) |
 | Screenshots | `RenderTexture` + `Camera.Render` | `Viewport.get_texture().get_image()` |
+| Editor mutations | Undo/redo aware | Undo/redo aware through `EditorUndoRedoManager` |
 
 ## Troubleshooting
 
@@ -180,7 +196,15 @@ addons/
 
 ### Console capture shows limited output
 
-- Godot's console capture hooks (`OS.print_error`, `OS.print_warning`) only catch error and warning output. Regular `print()` output is not capturable through Godot's API in editor plugins. Use `push_error()` or `push_warning()` in your scripts for log output you want the MCP server to see.
+- Godot's public editor plugin API does not expose an editor-wide console stream.
+- `editor_get_console` returns Game Engine MCP internal logs and reports this limitation explicitly.
+- If you need richer logs, add project-specific logging hooks or a runtime-side bridge.
+
+### Pause command returns an error
+
+- This is intentional.
+- Godot's public `EditorInterface` exposes play/stop, but not a native editor pause API comparable to Unity's editor pause button.
+- The plugin no longer fakes pause by mutating `Engine.time_scale`.
 
 ## Security
 
