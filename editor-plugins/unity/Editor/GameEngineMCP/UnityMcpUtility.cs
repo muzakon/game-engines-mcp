@@ -173,5 +173,25 @@ namespace GameEngineMCP
                 ["path"] = path ?? ""
             };
         }
+
+        public static Dictionary<string, object> SerializeException(Exception ex)
+        {
+            if (ex == null) return new Dictionary<string, object>();
+
+            return new Dictionary<string, object>
+            {
+                ["exceptionType"] = ex.GetType().FullName,
+                ["message"] = ex.Message,
+                ["stackTrace"] = ex.StackTrace ?? "",
+                ["innerException"] = ex.InnerException != null
+                    ? new Dictionary<string, object>
+                    {
+                        ["exceptionType"] = ex.InnerException.GetType().FullName,
+                        ["message"] = ex.InnerException.Message,
+                        ["stackTrace"] = ex.InnerException.StackTrace ?? ""
+                    }
+                    : null
+            };
+        }
     }
 }

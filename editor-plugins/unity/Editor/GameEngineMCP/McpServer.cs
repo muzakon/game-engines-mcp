@@ -6,6 +6,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
@@ -21,7 +22,7 @@ namespace GameEngineMCP
     ///   - A background listener thread accepts one client at a time and reads
     ///     newline-delimited JSON messages via a blocking read loop (no polling).
     ///   - Incoming commands are queued and drained on the Unity main thread
-    ///     via EditorApplication.delayCall, avoiding ManualResetEvent blocking.
+    ///     via Unity's SynchronizationContext.
     ///   - Responses are written back on the background thread after the main
     ///     thread signals completion.
     ///
@@ -36,6 +37,9 @@ namespace GameEngineMCP
         private static Thread _listenerThread;
         private static volatile bool _running;
         private static readonly object _streamLock = new object();
+        private static readonly ManualResetEventSlim _stopSignal = new ManualResetEventSlim(false);
+        private static readonly SynchronizationContext _unityContext;
+        private static int _drainScheduled;
 
         // Command queue: background thread enqueues, main thread drains.
         private static readonly ConcurrentQueue<PendingCommand> _commandQueue = new ConcurrentQueue<PendingCommand>();
@@ -52,6 +56,7 @@ namespace GameEngineMCP
 
         static McpServer()
         {
+            _unityContext = SynchronizationContext.Current;
             LoadSettings();
             if (_autoStart)
             {
@@ -71,6 +76,7 @@ namespace GameEngineMCP
                     var address = IPAddress.Parse(_host);
                     _listener = new TcpListener(address, _port);
                     _listener.Start();
+                    _stopSignal.Reset();
                     _running = true;
 
                     _listenerThread = new Thread(ListenForClients)
@@ -92,6 +98,7 @@ namespace GameEngineMCP
         public static void Stop()
         {
             _running = false;
+            _stopSignal.Set();
             lock (_streamLock)
             {
                 _stream?.Close();
@@ -102,11 +109,10 @@ namespace GameEngineMCP
                 _listener = null;
             }
 
-            // Drain any pending commands so their wait handles are signaled.
+            // Drain any pending commands so their reader waits are released.
             while (_commandQueue.TryDequeue(out var pending))
             {
-                pending.Response = new McpResponse(pending.RequestId, "error", error: "Server shutting down");
-                pending.Completed.Set();
+                pending.Completion.TrySetResult(new McpResponse(pending.RequestId, "error", error: "Server shutting down"));
             }
 
             Debug.Log("[GameEngineMCP] Server stopped");
@@ -135,6 +141,7 @@ namespace GameEngineMCP
                     {
                         _client?.Close();
                         _client = client;
+                        _client.NoDelay = true;
                         _stream = _client.GetStream();
                     }
 
@@ -158,7 +165,7 @@ namespace GameEngineMCP
                     if (_running)
                     {
                         Debug.LogError($"[GameEngineMCP] Listener error: {ex.Message}\n{ex.StackTrace}");
-                        Thread.Sleep(1000);
+                        _stopSignal.Wait(1000);
                     }
                 }
             }
@@ -174,11 +181,14 @@ namespace GameEngineMCP
                 try
                 {
                     int bytesRead;
+                    NetworkStream stream;
                     lock (_streamLock)
                     {
                         if (_stream == null) break;
-                        bytesRead = _stream.Read(buffer, 0, buffer.Length);
+                        stream = _stream;
                     }
+
+                    bytesRead = stream.Read(buffer, 0, buffer.Length);
 
                     if (bytesRead == 0)
                     {
@@ -205,6 +215,10 @@ namespace GameEngineMCP
                     pendingData.Append(data);
                 }
                 catch (IOException ex) when (!_running)
+                {
+                    break;
+                }
+                catch (ObjectDisposedException) when (!_running)
                 {
                     break;
                 }
@@ -243,7 +257,7 @@ namespace GameEngineMCP
             {
                 Json = json,
                 RequestId = requestId,
-                Completed = new ManualResetEventSlim(false)
+                Completion = new TaskCompletionSource<McpResponse>()
             };
 
             _commandQueue.Enqueue(pending);
@@ -251,44 +265,65 @@ namespace GameEngineMCP
 
             // Block the reader thread until the main thread has processed this command.
             // This preserves request-response ordering.
-            if (!pending.Completed.Wait(30000))
+            if (!pending.Completion.Task.Wait(30000))
             {
+                Interlocked.Exchange(ref pending.Cancelled, 1);
                 SendResponse(new McpResponse(requestId, "error", error: "Command timed out waiting for Unity main thread"));
                 return;
             }
 
-            SendResponse(pending.Response);
-            pending.Completed.Dispose();
+            SendResponse(pending.Completion.Task.Result);
         }
 
         /// <summary>
-        /// Schedules a single delayCall that drains the entire queue.
-        /// Re-entrant calls are safe: if the queue is already being drained,
-        /// the extra delayCall simply finds nothing to do.
+        /// Schedules a single main-thread callback that drains the entire queue.
+        /// Re-entrant calls are safe: if a drain is already scheduled,
+        /// callers reuse that pending drain.
         /// </summary>
         private static void ScheduleQueueDrain()
         {
-            EditorApplication.delayCall -= DrainCommandQueue;
+            if (Interlocked.Exchange(ref _drainScheduled, 1) == 1)
+                return;
+
+            if (_unityContext != null)
+            {
+                _unityContext.Post(_ => DrainCommandQueue(), null);
+                return;
+            }
+
             EditorApplication.delayCall += DrainCommandQueue;
         }
 
         private static void DrainCommandQueue()
         {
-            while (_commandQueue.TryDequeue(out var pending))
+            Interlocked.Exchange(ref _drainScheduled, 0);
+
+            try
             {
-                try
+                while (_commandQueue.TryDequeue(out var pending))
                 {
-                    var request = McpRequest.FromJson(pending.Json);
-                    pending.Response = CommandRouter.Route(request);
+                    if (Interlocked.CompareExchange(ref pending.Cancelled, 0, 0) == 1)
+                        continue;
+
+                    try
+                    {
+                        var request = McpRequest.FromJson(pending.Json);
+                        pending.Completion.TrySetResult(CommandRouter.Route(request));
+                    }
+                    catch (Exception ex)
+                    {
+                        pending.Completion.TrySetResult(McpResponse.Err(
+                            pending.RequestId,
+                            $"Parse error: {ex.Message}",
+                            UnityMcpUtility.SerializeException(ex)
+                        ));
+                    }
                 }
-                catch (Exception ex)
-                {
-                    pending.Response = new McpResponse(pending.RequestId, "error", error: $"Parse error: {ex.Message}");
-                }
-                finally
-                {
-                    pending.Completed.Set();
-                }
+            }
+            finally
+            {
+                if (!_commandQueue.IsEmpty)
+                    ScheduleQueueDrain();
             }
         }
 
@@ -387,8 +422,8 @@ namespace GameEngineMCP
         {
             public string Json;
             public int RequestId;
-            public McpResponse Response;
-            public ManualResetEventSlim Completed;
+            public int Cancelled;
+            public TaskCompletionSource<McpResponse> Completion;
         }
     }
 }

@@ -17,6 +17,64 @@ namespace GameEngineMCP
             });
         }
 
+        public static McpResponse ListCommands(McpRequest req)
+        {
+            return McpResponse.Ok(req.Id, new Dictionary<string, object>
+            {
+                ["commands"] = new List<Dictionary<string, object>>
+                {
+                    CommandInfo("ping", "Check that the Unity editor plugin is alive."),
+                    CommandInfo("list_commands", "Return supported Unity editor plugin commands."),
+                    CommandInfo("get_editor_info", "Return Unity version, project paths, play state, and editor state."),
+                    CommandInfo("play", "Enter play mode."),
+                    CommandInfo("pause", "Toggle editor pause state."),
+                    CommandInfo("stop", "Exit play mode."),
+                    CommandInfo("execute_menu_item", "Execute a Unity editor menu item by path.", "menuItem"),
+                    CommandInfo("repaint_editor", "Repaint hierarchy, project, and scene views."),
+                    CommandInfo("get_selection", "Return current editor selection."),
+                    CommandInfo("set_selection", "Set editor selection by one path or multiple paths.", "path", "paths"),
+                    CommandInfo("ping_object", "Ping and select an asset or scene object.", "path", "instanceId", "entityId"),
+                    CommandInfo("get_console_logs", "Return captured Unity console logs.", "count", "level"),
+                    CommandInfo("clear_console", "Clear captured logs and the Unity console window."),
+                    CommandInfo("new_scene", "Create a new scene.", "setup", "mode"),
+                    CommandInfo("open_scene", "Open a scene asset.", "path", "mode"),
+                    CommandInfo("close_scene", "Close an open scene.", "path", "removeScene"),
+                    CommandInfo("get_scene_hierarchy", "Return the active scene hierarchy."),
+                    CommandInfo("get_active_scene", "Return active scene metadata."),
+                    CommandInfo("get_open_scenes", "Return all open scenes."),
+                    CommandInfo("save_scene", "Save the active scene.", "path"),
+                    CommandInfo("save_all_scenes", "Save all open scenes."),
+                    CommandInfo("mark_scene_dirty", "Mark a scene dirty.", "path"),
+                    CommandInfo("find_objects", "Search scene objects by name, component, tag, layer, or active state.", "name", "component", "tag", "layer", "includeInactive", "limit"),
+                    CommandInfo("get_object", "Return a scene object and its children.", "path", "instanceId", "entityId"),
+                    CommandInfo("create_object", "Create a GameObject or primitive.", "name", "type", "parent"),
+                    CommandInfo("delete_object", "Delete a scene object.", "path", "instanceId", "entityId"),
+                    CommandInfo("move_object", "Set parent, position, rotation, or scale.", "path", "parent", "position", "rotation", "scale"),
+                    CommandInfo("duplicate_object", "Duplicate a scene object.", "path", "name"),
+                    CommandInfo("set_object_active", "Set GameObject active state.", "path", "active"),
+                    CommandInfo("add_component", "Add a component by type name.", "path", "component"),
+                    CommandInfo("remove_component", "Remove a component by type name.", "path", "component"),
+                    CommandInfo("get_properties", "Return serialized component properties.", "path", "component"),
+                    CommandInfo("set_property", "Set one component property.", "path", "component", "property", "value"),
+                    CommandInfo("set_properties", "Set multiple component properties.", "path", "component", "properties"),
+                    CommandInfo("list_assets", "List assets under a folder.", "path", "recursive", "filter"),
+                    CommandInfo("get_asset", "Return asset metadata.", "path"),
+                    CommandInfo("import_asset", "Import one asset.", "path"),
+                    CommandInfo("refresh_assets", "Refresh the AssetDatabase."),
+                    CommandInfo("create_folder", "Create an AssetDatabase folder.", "parent", "name"),
+                    CommandInfo("delete_asset", "Delete an asset.", "path"),
+                    CommandInfo("move_asset", "Move an asset.", "from", "to"),
+                    CommandInfo("copy_asset", "Copy an asset.", "from", "to"),
+                    CommandInfo("rename_asset", "Rename an asset.", "path", "name"),
+                    CommandInfo("get_asset_dependencies", "Return asset dependencies.", "path", "recursive"),
+                    CommandInfo("reveal_asset", "Reveal and ping an asset in the Project window.", "path"),
+                    CommandInfo("take_screenshot", "Capture active cameras to a PNG.", "width", "height"),
+                    CommandInfo("execute_code", "Execute supported editor code snippets.", "language", "code"),
+                    CommandInfo("run_tests", "Check Test Runner availability and initiate test workflow.", "test_mode")
+                }
+            });
+        }
+
         public static McpResponse GetEditorInfo(McpRequest req)
         {
             var info = new Dictionary<string, object>
@@ -167,6 +225,16 @@ namespace GameEngineMCP
 
             var go = UnityMcpUtility.FindGameObject(path);
             if (go != null) selected.Add(go);
+        }
+
+        private static Dictionary<string, object> CommandInfo(string name, string description, params string[] parameters)
+        {
+            return new Dictionary<string, object>
+            {
+                ["name"] = name,
+                ["description"] = description,
+                ["parameters"] = new List<string>(parameters)
+            };
         }
     }
 }

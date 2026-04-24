@@ -60,14 +60,32 @@ namespace GameEngineMCP
         public float GetFloatParam(string key, float defaultValue = 0f)
         {
             if (Params != null && Params.TryGetValue(key, out var val) && val != null)
-                return System.Convert.ToSingle(val);
+            {
+                try
+                {
+                    return System.Convert.ToSingle(val);
+                }
+                catch
+                {
+                    return defaultValue;
+                }
+            }
             return defaultValue;
         }
 
         public bool GetBoolParam(string key, bool defaultValue = false)
         {
             if (Params != null && Params.TryGetValue(key, out var val) && val != null)
-                return System.Convert.ToBoolean(val);
+            {
+                try
+                {
+                    return System.Convert.ToBoolean(val);
+                }
+                catch
+                {
+                    return defaultValue;
+                }
+            }
             return defaultValue;
         }
 

@@ -252,10 +252,22 @@ class TestUnityBridgeCommands:
         bridge.send_command = _send
 
         assert _run(bridge.open_scene("Assets/Main.unity"))["ok"]
+        assert _run(bridge.list_commands())["ok"]
+        assert _run(bridge.find_objects(component="Camera", limit=5))["ok"]
         assert _run(bridge.add_component("Player", "Rigidbody"))["ok"]
         assert _run(bridge.get_asset_dependencies("Assets/Main.unity"))["ok"]
         assert sent == [
             ("open_scene", {"path": "Assets/Main.unity", "mode": "single"}),
+            ("list_commands", {}),
+            (
+                "find_objects",
+                {
+                    "includeInactive": True,
+                    "limit": 5,
+                    "exact": False,
+                    "component": "Camera",
+                },
+            ),
             ("add_component", {"path": "Player", "component": "Rigidbody"}),
             (
                 "get_asset_dependencies",

@@ -26,6 +26,38 @@ namespace GameEngineMCP
             return McpResponse.Ok(req.Id, SceneCommands.SerializeGameObject(obj));
         }
 
+        public static McpResponse FindObjects(McpRequest req)
+        {
+            var name = req.GetStringParam("name", "");
+            var component = req.GetStringParam("component", "");
+            var tag = req.GetStringParam("tag", "");
+            var layer = req.GetStringParam("layer", "");
+            var includeInactive = req.GetBoolParam("includeInactive", true);
+            var limit = Mathf.Clamp(req.GetIntParam("limit", 100), 1, 500);
+            var exact = req.GetBoolParam("exact", false);
+            var results = new List<Dictionary<string, object>>();
+
+            foreach (var obj in Resources.FindObjectsOfTypeAll<GameObject>())
+            {
+                if (obj == null || EditorUtility.IsPersistent(obj)) continue;
+                if (!includeInactive && !obj.activeInHierarchy) continue;
+                if (!MatchesName(obj.name, name, exact)) continue;
+                if (!MatchesTag(obj, tag)) continue;
+                if (!MatchesLayer(obj, layer)) continue;
+                if (!MatchesComponent(obj, component)) continue;
+
+                results.Add(SerializeObjectSummary(obj));
+                if (results.Count >= limit) break;
+            }
+
+            return McpResponse.Ok(req.Id, new Dictionary<string, object>
+            {
+                ["objects"] = results,
+                ["count"] = results.Count,
+                ["limit"] = limit
+            });
+        }
+
         public static McpResponse CreateObject(McpRequest req)
         {
             var name = req.GetStringParam("name", "NewObject");
@@ -226,6 +258,56 @@ namespace GameEngineMCP
                 }
             }
             return null;
+        }
+
+        private static bool MatchesName(string objectName, string query, bool exact)
+        {
+            if (string.IsNullOrWhiteSpace(query)) return true;
+            return exact
+                ? objectName.Equals(query, System.StringComparison.OrdinalIgnoreCase)
+                : objectName.IndexOf(query, System.StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static bool MatchesTag(GameObject obj, string tag)
+        {
+            if (string.IsNullOrWhiteSpace(tag)) return true;
+            return obj.tag.Equals(tag, System.StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool MatchesLayer(GameObject obj, string layer)
+        {
+            if (string.IsNullOrWhiteSpace(layer)) return true;
+            if (int.TryParse(layer, out var layerIndex))
+                return obj.layer == layerIndex;
+            return LayerMask.LayerToName(obj.layer).Equals(layer, System.StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool MatchesComponent(GameObject obj, string component)
+        {
+            if (string.IsNullOrWhiteSpace(component)) return true;
+            return PropertyCommands.FindComponent(obj, component) != null;
+        }
+
+        private static Dictionary<string, object> SerializeObjectSummary(GameObject obj)
+        {
+            var components = new List<string>();
+            foreach (var comp in obj.GetComponents<Component>())
+            {
+                if (comp != null) components.Add(comp.GetType().Name);
+            }
+
+            return new Dictionary<string, object>
+            {
+                ["name"] = obj.name,
+                ["path"] = UnityMcpUtility.GetHierarchyPath(obj),
+                ["entityId"] = UnityMcpUtility.GetObjectId(obj),
+                ["instanceId"] = obj.GetInstanceID(),
+                ["activeSelf"] = obj.activeSelf,
+                ["activeInHierarchy"] = obj.activeInHierarchy,
+                ["tag"] = obj.tag,
+                ["layer"] = LayerMask.LayerToName(obj.layer),
+                ["components"] = components
+            };
         }
     }
 }

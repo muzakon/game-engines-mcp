@@ -67,6 +67,11 @@ class UnityBridge(EditorBridge):
     # Editor state and selection
     # ------------------------------------------------------------------
 
+    async def list_commands(self) -> dict[str, Any]:
+        resp = await self.send_command("list_commands")
+        self._check_error(resp)
+        return resp.data
+
     async def execute_menu_item(self, menu_item: str) -> dict[str, Any]:
         resp = await self.send_command("execute_menu_item", {"menuItem": menu_item})
         self._check_error(resp)
@@ -114,6 +119,33 @@ class UnityBridge(EditorBridge):
     # ------------------------------------------------------------------
     # GameObject / component operations
     # ------------------------------------------------------------------
+
+    async def find_objects(
+        self,
+        name: str | None = None,
+        component: str | None = None,
+        tag: str | None = None,
+        layer: str | int | None = None,
+        include_inactive: bool = True,
+        limit: int = 100,
+        exact: bool = False,
+    ) -> dict[str, Any]:
+        params: dict[str, Any] = {
+            "includeInactive": include_inactive,
+            "limit": limit,
+            "exact": exact,
+        }
+        if name:
+            params["name"] = name
+        if component:
+            params["component"] = component
+        if tag:
+            params["tag"] = tag
+        if layer is not None:
+            params["layer"] = layer
+        resp = await self.send_command("find_objects", params)
+        self._check_error(resp)
+        return resp.data
 
     async def duplicate_object(
         self, path: str, name: str | None = None

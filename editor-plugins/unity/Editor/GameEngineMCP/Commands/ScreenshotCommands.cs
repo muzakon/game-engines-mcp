@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
@@ -22,40 +23,53 @@ namespace GameEngineMCP
             if (width <= 0) width = Screen.width;
             if (height <= 0) height = Screen.height;
 
-            // Capture the game view render
             var tempRT = RenderTexture.GetTemporary(width, height, 24);
             var prevRT = RenderTexture.active;
-            RenderTexture.active = tempRT;
+            Texture2D tex = null;
 
-            var cameras = Camera.allCameras;
-            foreach (var cam in cameras)
+            try
             {
-                if (!cam.gameObject.activeInHierarchy) continue;
-                var prevTarget = cam.targetTexture;
-                cam.targetTexture = tempRT;
-                cam.Render();
-                cam.targetTexture = prevTarget;
+                RenderTexture.active = tempRT;
+
+                var cameras = Camera.allCameras;
+                foreach (var cam in cameras)
+                {
+                    if (!cam.gameObject.activeInHierarchy) continue;
+                    var prevTarget = cam.targetTexture;
+                    try
+                    {
+                        cam.targetTexture = tempRT;
+                        cam.Render();
+                    }
+                    finally
+                    {
+                        cam.targetTexture = prevTarget;
+                    }
+                }
+
+                tex = new Texture2D(width, height, TextureFormat.RGB24, false);
+                tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+                tex.Apply();
+
+                var pngBytes = tex.EncodeToPNG();
+                var base64 = System.Convert.ToBase64String(pngBytes);
+
+                return McpResponse.Ok(req.Id, new Dictionary<string, object>
+                {
+                    ["image_base64"] = base64,
+                    ["width"] = width,
+                    ["height"] = height,
+                    ["format"] = "png"
+                });
             }
-
-            var tex = new Texture2D(width, height, TextureFormat.RGB24, false);
-            tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
-            tex.Apply();
-
-            RenderTexture.active = prevRT;
-            RenderTexture.ReleaseTemporary(tempRT);
-
-            var pngBytes = tex.EncodeToPNG();
-            var base64 = System.Convert.ToBase64String(pngBytes);
-
-            Object.DestroyImmediate(tex);
-
-            return McpResponse.Ok(req.Id, new Dictionary<string, object>
+            finally
             {
-                ["image_base64"] = base64,
-                ["width"] = width,
-                ["height"] = height,
-                ["format"] = "png"
-            });
+                RenderTexture.active = prevRT;
+                RenderTexture.ReleaseTemporary(tempRT);
+
+                if (tex != null)
+                    Object.DestroyImmediate(tex);
+            }
         }
 
         private static EditorWindow GetGameView()

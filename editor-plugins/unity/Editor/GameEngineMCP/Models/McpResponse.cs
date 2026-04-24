@@ -26,9 +26,9 @@ namespace GameEngineMCP
             return new McpResponse(id, "ok", data);
         }
 
-        public static McpResponse Err(int id, string error)
+        public static McpResponse Err(int id, string error, Dictionary<string, object> data = null)
         {
-            return new McpResponse(id, "error", error: error);
+            return new McpResponse(id, "error", data, error);
         }
 
         public string ToJson()

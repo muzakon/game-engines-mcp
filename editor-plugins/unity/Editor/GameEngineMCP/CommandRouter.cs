@@ -2,7 +2,7 @@ namespace GameEngineMCP
 {
     /// <summary>
     /// Routes incoming MCP commands to the appropriate handler.
-    /// All handlers run on the main Unity thread via EditorApplication.delayCall.
+    /// All handlers run on the main Unity thread via McpServer's queue pump.
     /// </summary>
     public static class CommandRouter
     {
@@ -13,6 +13,7 @@ namespace GameEngineMCP
                 return request.Command switch
                 {
                     "ping" => EditorCommands.Ping(request),
+                    "list_commands" => EditorCommands.ListCommands(request),
                     "get_editor_info" => EditorCommands.GetEditorInfo(request),
                     "play" => EditorCommands.Play(request),
                     "pause" => EditorCommands.Pause(request),
@@ -34,6 +35,7 @@ namespace GameEngineMCP
                     "save_all_scenes" => SceneCommands.SaveAllScenes(request),
                     "mark_scene_dirty" => SceneCommands.MarkSceneDirty(request),
                     "get_object" => ObjectCommands.GetObject(request),
+                    "find_objects" => ObjectCommands.FindObjects(request),
                     "create_object" => ObjectCommands.CreateObject(request),
                     "delete_object" => ObjectCommands.DeleteObject(request),
                     "move_object" => ObjectCommands.MoveObject(request),
@@ -63,7 +65,12 @@ namespace GameEngineMCP
             }
             catch (System.Exception ex)
             {
-                return McpResponse.Err(request.Id, $"Command '{request.Command}' failed: {ex.Message}");
+                UnityEngine.Debug.LogError($"[GameEngineMCP] Command '{request.Command}' failed: {ex}");
+                return McpResponse.Err(
+                    request.Id,
+                    $"Command '{request.Command}' failed: {ex.Message}",
+                    UnityMcpUtility.SerializeException(ex)
+                );
             }
         }
     }
